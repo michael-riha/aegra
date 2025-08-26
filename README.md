@@ -257,6 +257,10 @@ OPENAI_API_KEY=sk-...
 - **📚 [Developer Guide](docs/developer-guide.md)** - Complete setup, migrations, and development workflow
 - **⚡ [Migration Cheatsheet](docs/migration-cheatsheet.md)** - Quick reference for common commands
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ibbybuilds/aegra&type=Date)](https://www.star-history.com/#ibbybuilds/aegra&Date)
+
 ## 🛣️ Roadmap
 
 **✅ Completed**
