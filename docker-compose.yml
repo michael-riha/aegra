@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # PostgreSQL database for LangGraph and metadata
   postgres:
@@ -37,6 +35,7 @@ services:
       - ./src:/app/src:ro # for hot reload support of server
       - ./auth.py:/app/auth.py:ro
       - ./.env:/app/.env:ro
+      - ./alembic:/app/alembic:ro # for migrations
     command: >
       sh -c "
         echo 'Running database migrations...' &&
