@@ -1,4 +1,5 @@
 """Thread endpoints for Agent Protocol"""
+import asyncio
 from uuid import uuid4
 from datetime import datetime
 from typing import List, Optional, Dict, Any
@@ -11,8 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import Thread, ThreadCreate, ThreadList, ThreadSearchRequest, ThreadSearchResponse, ThreadState, ThreadHistoryRequest, User, ThreadCheckpoint
 from ..core.auth_deps import get_current_user
-from ..core.orm import Thread as ThreadORM, get_session
+from ..core.orm import Thread as ThreadORM, Run as RunORM, get_session
 from ..core.database import db_manager
+from ..services.streaming_service import streaming_service
+from ..api.runs import active_runs
 
 # TODO: adopt structured logging across all modules; replace print() and bare exceptions in:
 # - agent_server/api/*.py
@@ -322,14 +325,56 @@ async def delete_thread(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
-    """Delete thread by ID"""
+    """
+    Delete thread by ID.
+    
+    Automatically cancels any active runs and deletes the thread.
+    CASCADE DELETE automatically removes all run records when thread is deleted.
+    """
+    logger = logging.getLogger(__name__)
+    
+    # Check if thread exists
     stmt = select(ThreadORM).where(ThreadORM.thread_id == thread_id, ThreadORM.user_id == user.identity)
     thread = await session.scalar(stmt)
     if not thread:
         raise HTTPException(404, f"Thread '{thread_id}' not found")
 
+    # Check for active runs and cancel them
+    active_runs_stmt = select(RunORM).where(
+        RunORM.thread_id == thread_id,
+        RunORM.user_id == user.identity,
+        RunORM.status.in_(["pending", "running", "streaming"])
+    )
+    active_runs_list = (await session.scalars(active_runs_stmt)).all()
+    
+    # Cancel active runs if they exist
+    if active_runs_list:
+        logger.info(f"Cancelling {len(active_runs_list)} active runs for thread {thread_id}")
+        
+        for run in active_runs_list:
+            run_id = run.run_id
+            logger.debug(f"Cancelling run {run_id}")
+            
+            # Cancel via streaming service
+            await streaming_service.cancel_run(run_id)
+            
+            # Clean up background task if exists
+            task = active_runs.pop(run_id, None)
+            if task and not task.done():
+                task.cancel()
+                # Best-effort: wait for task to settle
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"Error waiting for task {run_id} to settle: {e}")
+
+    # Delete thread (CASCADE DELETE will automatically remove all runs)
     await session.delete(thread)
     await session.commit()
+    
+    logger.info(f"Deleted thread {thread_id} (cancelled {len(active_runs_list)} active runs)")
     return {"status": "deleted"}
 
 

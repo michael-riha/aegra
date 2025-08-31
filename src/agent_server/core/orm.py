@@ -90,7 +90,7 @@ class Run(Base):
 
     # TEXT PK with DB-side generation using uuid_generate_v4()::text
     run_id: Mapped[str] = mapped_column(Text, primary_key=True, server_default=text("uuid_generate_v4()::text"))
-    thread_id: Mapped[str] = mapped_column(Text, ForeignKey("thread.thread_id"), nullable=False)
+    thread_id: Mapped[str] = mapped_column(Text, ForeignKey("thread.thread_id", ondelete="CASCADE"), nullable=False)
     assistant_id: Mapped[str | None] = mapped_column(Text, ForeignKey("assistant.assistant_id"))
     status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
     input: Mapped[dict | None] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
