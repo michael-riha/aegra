@@ -10,7 +10,7 @@ from typing import Any, Callable, List, Optional, cast
 
 from langgraph.runtime import get_runtime
 
-from graphs.react_agent.context import Context
+from react_agent.context import Context
 
 
 async def search(query: str) -> Optional[dict[str, Any]]:

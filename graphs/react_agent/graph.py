@@ -11,10 +11,10 @@ from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.runtime import Runtime
 
-from graphs.react_agent.context import Context
-from graphs.react_agent.state import InputState, State
-from graphs.react_agent.tools import TOOLS
-from graphs.react_agent.utils import load_chat_model
+from react_agent.context import Context
+from react_agent.state import InputState, State
+from react_agent.tools import TOOLS
+from react_agent.utils import load_chat_model
 
 # Define the function that calls the model
 

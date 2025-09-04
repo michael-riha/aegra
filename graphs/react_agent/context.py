@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field, fields
 from typing import Annotated
 
-from . import prompts
+from react_agent import prompts
 
 
 @dataclass(kw_only=True)

@@ -29,7 +29,6 @@ dependencies = [
     "alembic>=1.16.4",
     "asyncpg>=0.30.0",
     "fastapi>=0.116.1",
-    "firebase-admin>=7.0.0",
     "greenlet>=3.2.3",
     "langchain-openai>=0.3.28",
     "langgraph>=0.5.3",
@@ -54,6 +53,9 @@ Documentation = "https://github.com/ibbybuilds/aegra#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agent_server"]
+
+[tool.hatch.build.targets.wheel.sources]
+"graphs/react_agent" = "react_agent"
 
 [tool.black]
 line-length = 88
