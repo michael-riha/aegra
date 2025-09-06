@@ -15,6 +15,12 @@ import uvicorn
 from dotenv import load_dotenv
 from pathlib import Path
 
+# Add graphs directory to Python path so imports can be resolved
+current_dir = Path(__file__).parent
+graphs_dir = current_dir / "graphs"
+if str(graphs_dir) not in sys.path:
+    sys.path.insert(0, str(graphs_dir))
+
 def setup_environment():
     """Set up environment variables for testing"""
     # Set database URL for development
