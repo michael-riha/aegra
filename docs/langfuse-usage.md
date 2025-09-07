@@ -37,5 +37,5 @@ The integration is designed to be zero-config. Once enabled, it will automatical
     -   `user:<user_id>`: The user ID.
 
 This metadata-rich tracing allows you to easily debug issues, analyze performance, and understand how your agents are being used, all from the Langfuse UI.
-
+-   **IMPORTANT**: When you make changes in .env restart the server.
 For more detailed information about Langfuse and its features, please refer to the [official Langfuse documentation](https://langfuse.com/docs). 
