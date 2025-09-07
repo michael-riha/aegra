@@ -14,6 +14,10 @@ Welcome to the Aegra documentation! Here you'll find everything you need to get 
 - **[Main README](../README.md)** - Project overview and quick start
 - **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute to Aegra
 
+## Observability
+
+- [Langfuse Integration](./langfuse-usage.md) - How to set up and use Langfuse for tracing.
+
 ## 🚀 Quick Start
 
 1. **Read the [Developer Guide](developer-guide.md)** for complete setup instructions
