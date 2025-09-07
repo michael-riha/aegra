@@ -1,7 +1,7 @@
 """Run endpoints for Agent Protocol"""
 import asyncio
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, Optional
 from fastapi import APIRouter, HTTPException, Depends, Header, Query
 import logging
@@ -42,7 +42,7 @@ async def set_thread_status(session: AsyncSession, thread_id: str, status: str):
     await session.execute(
         update(ThreadORM)
         .where(ThreadORM.thread_id == thread_id)
-        .values(status=status, updated_at=datetime.utcnow())
+        .values(status=status, updated_at=datetime.now(UTC))
     )
     await session.commit()
 
@@ -63,7 +63,7 @@ async def update_thread_metadata(session: AsyncSession, thread_id: str, assistan
     await session.execute(
         update(ThreadORM)
         .where(ThreadORM.thread_id == thread_id)
-        .values(metadata_json=md, updated_at=datetime.utcnow())
+        .values(metadata_json=md, updated_at=datetime.now(UTC))
     )
     await session.commit()
 
@@ -124,7 +124,7 @@ async def create_run(
     await update_thread_metadata(session, thread_id, assistant.assistant_id, assistant.graph_id)
 
     # Persist run record via ORM model in core.orm (Run table)
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     run_orm = RunORM(
         run_id=run_id,  # explicitly set (DB can also default-generate if omitted)
         thread_id=thread_id,
@@ -233,7 +233,7 @@ async def create_and_stream_run(
     await update_thread_metadata(session, thread_id, assistant.assistant_id, assistant.graph_id)
 
     # Persist run record
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     run_orm = RunORM(
         run_id=run_id,
         thread_id=thread_id,
@@ -378,7 +378,7 @@ async def update_run(
         await streaming_service.cancel_run(run_id)
         print(f"[update_run] set DB status=cancelled run_id={run_id}")
         await session.execute(
-            update(RunORM).where(RunORM.run_id == str(run_id)).values(status="cancelled", updated_at=datetime.utcnow())
+            update(RunORM).where(RunORM.run_id == str(run_id)).values(status="cancelled", updated_at=datetime.now(UTC))
         )
         await session.commit()
         print(f"[update_run] commit done (cancelled) run_id={run_id}")
@@ -387,7 +387,7 @@ async def update_run(
         await streaming_service.interrupt_run(run_id)
         print(f"[update_run] set DB status=interrupted run_id={run_id}")
         await session.execute(
-            update(RunORM).where(RunORM.run_id == str(run_id)).values(status="interrupted", updated_at=datetime.utcnow())
+            update(RunORM).where(RunORM.run_id == str(run_id)).values(status="interrupted", updated_at=datetime.now(UTC))
         )
         await session.commit()
         print(f"[update_run] commit done (interrupted) run_id={run_id}")
@@ -527,7 +527,7 @@ async def cancel_run_endpoint(
         await streaming_service.interrupt_run(run_id)
         # Persist status as interrupted
         await session.execute(
-            update(RunORM).where(RunORM.run_id == str(run_id)).values(status="interrupted", updated_at=datetime.utcnow())
+            update(RunORM).where(RunORM.run_id == str(run_id)).values(status="interrupted", updated_at=datetime.now(UTC))
         )
         await session.commit()
     else:
@@ -535,7 +535,7 @@ async def cancel_run_endpoint(
         await streaming_service.cancel_run(run_id)
         # Persist status as cancelled
         await session.execute(
-            update(RunORM).where(RunORM.run_id == str(run_id)).values(status="cancelled", updated_at=datetime.utcnow())
+            update(RunORM).where(RunORM.run_id == str(run_id)).values(status="cancelled", updated_at=datetime.now(UTC))
         )
         await session.commit()
 
@@ -677,7 +677,7 @@ async def update_run_status(
         session = maker()  # type: ignore[assignment]
         owns_session = True
     try:
-        values = {"status": status, "updated_at": datetime.utcnow()}
+        values = {"status": status, "updated_at": datetime.now(UTC)}
         if output is not None:
             values["output"] = output
         if error is not None:

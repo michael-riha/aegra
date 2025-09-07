@@ -24,10 +24,22 @@ class Assistant(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
     graph_id: str
     user_id: str
+    version: int = Field(..., description="The version of the assistant.")
     created_at: datetime
+    updated_at: datetime
     
     class Config:
         from_attributes = True
+
+
+class AssistantUpdate(BaseModel):
+    """Request model for creating assistants"""
+    name: Optional[str] = Field(None, description="The name of the assistant (auto-generated if not provided)")
+    description: Optional[str] = Field(None, description="The description of the assistant. Defaults to null.")
+    config: Optional[Dict[str, Any]] = Field({}, description="Configuration to use for the graph.")
+    graph_id: str = Field("agent", description="The ID of the graph")
+    context: Optional[Dict[str, Any]] = Field({}, description="The context to use for the graph. Useful when graph is configurable.")
+    metadata: Optional[Dict[str, Any]] = Field({}, description="Metadata to use for searching and filtering assistants.")
 
 
 class AssistantList(BaseModel):

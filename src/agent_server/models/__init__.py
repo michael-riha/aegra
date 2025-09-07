@@ -1,6 +1,6 @@
 """Agent Protocol Pydantic models"""
 
-from .assistants import Assistant, AssistantCreate, AssistantList, AssistantSearchRequest, AssistantSearchResponse, AgentSchemas
+from .assistants import Assistant, AssistantCreate, AssistantList, AssistantSearchRequest, AssistantSearchResponse, AssistantUpdate, AgentSchemas
 from .threads import Thread, ThreadCreate, ThreadList, ThreadSearchRequest, ThreadSearchResponse, ThreadState, ThreadCheckpoint, ThreadHistoryRequest
 from .runs import Run, RunCreate, RunList, RunStatus
 from .store import (
@@ -16,7 +16,7 @@ from .auth import User, AuthContext, TokenPayload
 
 __all__ = [
     # Assistants
-    "Assistant", "AssistantCreate", "AssistantList", "AssistantSearchRequest", "AssistantSearchResponse", "AgentSchemas",
+    "Assistant", "AssistantCreate", "AssistantList", "AssistantSearchRequest", "AssistantSearchResponse", "AssistantUpdate", "AgentSchemas",
     # Threads  
     "Thread", "ThreadCreate", "ThreadList", "ThreadSearchRequest", "ThreadSearchResponse", "ThreadState", "ThreadCheckpoint", "ThreadHistoryRequest",
     # Runs
