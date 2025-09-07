@@ -38,4 +38,9 @@ The integration is designed to be zero-config. Once enabled, it will automatical
 
 This metadata-rich tracing allows you to easily debug issues, analyze performance, and understand how your agents are being used, all from the Langfuse UI.
 -   **IMPORTANT**: When you make changes in .env restart the server.
+
+## Future Enhancements
+
+-   **Trace ID Correlation**: To make debugging even easier, we plan to set the Langfuse `trace_id` to be the same as the Aegra `run_id`. This will allow for a direct one-to-one mapping between a run in our system and its corresponding trace in Langfuse.
+
 For more detailed information about Langfuse and its features, please refer to the [official Langfuse documentation](https://langfuse.com/docs). 
