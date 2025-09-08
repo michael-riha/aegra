@@ -648,10 +648,12 @@ async def execute_run_async(
         has_interrupt = False
         
         # Prepare stream modes for execution
-        if stream_mode:
-            final_stream_modes = stream_mode.copy()
-        else:
+        if stream_mode is None:
             final_stream_modes = DEFAULT_STREAM_MODES.copy()
+        elif isinstance(stream_mode, str):
+            final_stream_modes = [stream_mode]
+        else:
+            final_stream_modes = stream_mode.copy()
             
         # Ensure interrupt events are captured by including updates mode
         # Track whether updates was explicitly requested by user
