@@ -1,14 +1,15 @@
-"""Streaming service for orchestrating SSE streaming - LangGraph Compatible"""
+"""Streaming service for orchestrating SSE streaming"""
 import asyncio
 import logging
 from typing import Dict, AsyncIterator, Optional, Any
 
 from ..models import Run, User
 from ..core.sse import (
-    create_metadata_event, create_values_event, 
+    create_metadata_event, create_values_event, create_updates_event,
     create_end_event, create_error_event, create_events_event,
     create_messages_event, create_state_event, create_logs_event,
-    create_tasks_event, create_subgraphs_event, create_debug_event
+    create_tasks_event, create_subgraphs_event, create_debug_event,
+    create_checkpoints_event, create_custom_event
 )
 from .event_store import event_store, store_sse_event
 from .langgraph_service import get_langgraph_service, create_run_config
@@ -36,28 +37,72 @@ class StreamingService:
             pass  # Ignore format issues
         return self.event_counters.get(run_id, 0)
     
-    async def put_to_broker(self, run_id: str, event_id: str, raw_event: Any):
+    async def put_to_broker(self, run_id: str, event_id: str, raw_event: Any, only_interrupt_updates: bool = False):
         """Put an event into the run's broker queue for live consumers"""
         broker = broker_manager.get_or_create_broker(run_id)
         # Keep internal counter in sync with highest event index seen
         self._next_event_counter(run_id, event_id)
-        await broker.put(event_id, raw_event)
+        
+        # Handle updates events based on user request
+        if (
+            isinstance(raw_event, tuple) 
+            and len(raw_event) >= 2
+            and raw_event[0] == "updates"
+            and only_interrupt_updates
+        ):
+            # User didn't request updates - only process interrupt updates
+            if (
+                isinstance(raw_event[1], dict)
+                and "__interrupt__" in raw_event[1]
+                and len(raw_event[1].get("__interrupt__", [])) > 0
+            ):
+                # Convert interrupt updates to values events
+                processed_event = ("values", raw_event[1])
+            else:
+                # Skip non-interrupt updates when not requested
+                return
+        else:
+            processed_event = raw_event
+            
+        await broker.put(event_id, processed_event)
     
-    async def store_event_from_raw(self, run_id: str, event_id: str, raw_event: Any):
+    
+    async def store_event_from_raw(self, run_id: str, event_id: str, raw_event: Any, only_interrupt_updates: bool = False):
         """Convert raw event to stored format and store it"""
-        # Parse the raw event similar to existing logic
+        # Handle updates events based on user request
+        if (
+            isinstance(raw_event, tuple) 
+            and len(raw_event) >= 2
+            and raw_event[0] == "updates"
+            and only_interrupt_updates
+        ):
+            # User didn't request updates - only process interrupt updates
+            if (
+                isinstance(raw_event[1], dict)
+                and "__interrupt__" in raw_event[1]
+                and len(raw_event[1].get("__interrupt__", [])) > 0
+            ):
+                # Convert interrupt updates to values events
+                processed_event = ("values", raw_event[1])
+            else:
+                # Skip non-interrupt updates when not requested
+                return
+        else:
+            processed_event = raw_event
+        
+        # Parse the processed event
         node_path = None
         stream_mode_label = None
         event_payload = None
 
-        if isinstance(raw_event, tuple):
-            if len(raw_event) == 2:
-                stream_mode_label, event_payload = raw_event
-            elif len(raw_event) == 3:
-                node_path, stream_mode_label, event_payload = raw_event
+        if isinstance(processed_event, tuple):
+            if len(processed_event) == 2:
+                stream_mode_label, event_payload = processed_event
+            elif len(processed_event) == 3:
+                node_path, stream_mode_label, event_payload = processed_event
         else:
             stream_mode_label = "values"
-            event_payload = raw_event
+            event_payload = processed_event
 
         # Store based on stream mode
         if stream_mode_label == "messages":
@@ -73,6 +118,13 @@ class StreamingService:
                 },
             )
         elif stream_mode_label == "values":
+            await store_sse_event(
+                run_id,
+                event_id,
+                "values",
+                {"type": "execution_values", "chunk": event_payload},
+            )
+        elif stream_mode_label == "updates":
             await store_sse_event(
                 run_id,
                 event_id,
@@ -183,7 +235,6 @@ class StreamingService:
     
     async def _convert_raw_to_sse(self, event_id: str, raw_event: Any) -> Optional[str]:
         """Convert a raw event from broker to SSE format using the provided event_id"""
-        # Parse raw_event similar to earlier logic
         node_path = None
         stream_mode_label = None
         event_payload = None
@@ -202,6 +253,12 @@ class StreamingService:
             return create_messages_event(event_payload, event_id=event_id)
         elif stream_mode_label == "values":
             return create_values_event(event_payload, event_id)
+        elif stream_mode_label == "updates":
+            # Only convert to values if it contains interrupt data, otherwise keep as updates
+            if isinstance(event_payload, dict) and "__interrupt__" in event_payload:
+                return create_values_event(event_payload, event_id)
+            else:
+                return create_updates_event(event_payload, event_id)
         elif stream_mode_label == "state":
             return create_state_event(event_payload, event_id)
         elif stream_mode_label == "logs":
@@ -212,6 +269,12 @@ class StreamingService:
             return create_subgraphs_event(event_payload, event_id)
         elif stream_mode_label == "debug":
             return create_debug_event(event_payload, event_id)
+        elif stream_mode_label == "events":
+            return create_events_event(event_payload, event_id)
+        elif stream_mode_label == "checkpoints":
+            return create_checkpoints_event(event_payload, event_id)
+        elif stream_mode_label == "custom":
+            return create_custom_event(event_payload, event_id)
         elif stream_mode_label == "end":
             return create_end_event(event_id)
         

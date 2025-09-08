@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 active_runs: Dict[str, asyncio.Task] = {}
 
 # Default stream modes for background run execution
-RUN_STREAM_MODES = ["messages", "values", "custom"]
+DEFAULT_STREAM_MODES = ["values"]
 
 async def set_thread_status(session: AsyncSession, thread_id: str, status: str):
     """Update the status column of a thread."""
@@ -586,6 +586,7 @@ async def execute_run_async(
     command: Optional[Dict[str, Any]] = None,
     interrupt_before: Optional[Union[str, List[str]]] = None,
     interrupt_after: Optional[Union[str, List[str]]] = None,
+    multitask_strategy: Optional[str] = None,
 ):
     
     """Execute run asynchronously in background using streaming to capture all events"""    # Use provided session or get a new one
@@ -644,6 +645,21 @@ async def execute_run_async(
         # Execute using streaming to capture events for later replay
         event_counter = 0
         final_output = None
+        has_interrupt = False
+        
+        # Prepare stream modes for execution
+        if stream_mode:
+            final_stream_modes = stream_mode.copy()
+        else:
+            final_stream_modes = DEFAULT_STREAM_MODES.copy()
+            
+        # Ensure interrupt events are captured by including updates mode
+        # Track whether updates was explicitly requested by user
+        user_requested_updates = "updates" in final_stream_modes
+        if not user_requested_updates:
+            final_stream_modes.append("updates")
+            
+        only_interrupt_updates = not user_requested_updates
         
         # Use streaming service's broker system to distribute events
         async with with_auth_ctx(user, []):
@@ -651,15 +667,26 @@ async def execute_run_async(
                 execution_input,
                 config=run_config,
                 context=context,
-                stream_mode=stream_mode or RUN_STREAM_MODES,
+                stream_mode=final_stream_modes,
             ):
                 event_counter += 1
                 event_id = f"{run_id}_event_{event_counter}"
                 
                 # Forward to broker for live consumers
-                await streaming_service.put_to_broker(run_id, event_id, raw_event)
+                await streaming_service.put_to_broker(run_id, event_id, raw_event, only_interrupt_updates=only_interrupt_updates)
                 # Store for replay
-                await streaming_service.store_event_from_raw(run_id, event_id, raw_event)
+                await streaming_service.store_event_from_raw(run_id, event_id, raw_event, only_interrupt_updates=only_interrupt_updates)
+                
+                # Check for interrupt in this event
+                event_data = None
+                if isinstance(raw_event, tuple) and len(raw_event) >= 2:
+                    event_data = raw_event[1]
+                elif not isinstance(raw_event, tuple):
+                    event_data = raw_event
+                
+                if isinstance(event_data, dict) and "__interrupt__" in event_data:
+                    has_interrupt = True
+                
                 # Track final output
                 if isinstance(raw_event, tuple):
                     if len(raw_event) >= 2 and raw_event[0] == "values":
@@ -667,44 +694,19 @@ async def execute_run_async(
                 elif not isinstance(raw_event, tuple):
                     # Non-tuple events are values mode
                     final_output = raw_event
-
-        # Check if execution was interrupted by examining final_output
-        # According to LangGraph docs, interrupted runs have __interrupt__ key
-        if isinstance(final_output, dict) and "__interrupt__" in final_output:
-            # Handle interrupt case
-            interrupt_data = final_output["__interrupt__"]
-            event_counter += 1
-            interrupt_event_id = f"{run_id}_event_{event_counter}"
-            interrupt_event = ("interrupt", {
-                "status": "interrupted",
-                "interrupt_data": interrupt_data,
-                "thread_id": thread_id,
-                "run_id": run_id
-            })
-            
-            await streaming_service.put_to_broker(run_id, interrupt_event_id, interrupt_event)
-            await streaming_service.store_event_from_raw(run_id, interrupt_event_id, interrupt_event)
-            
-            # Update run status to interrupted
-            await update_run_status(run_id, "interrupted", output=final_output, session=session)
+        
+        if has_interrupt:
+            await update_run_status(run_id, "interrupted", output={}, session=session)
+            if not session:
+                raise RuntimeError(f"No database session available to update thread {thread_id} status")
             await set_thread_status(session, thread_id, "interrupted")
-            
-            return
-        
-        # Signal normal completion
-        event_counter += 1
-        end_event_id = f"{run_id}_event_{event_counter}"
-        end_event = ("end", {"status": "completed", "final_output": final_output})
-        
-        await streaming_service.put_to_broker(run_id, end_event_id, end_event)
-        await streaming_service.store_event_from_raw(run_id, end_event_id, end_event)
-        
-        # Update with results (store empty JSON to avoid serialization issues for now)
-        await update_run_status(run_id, "completed", output={}, session=session)
-        # Mark thread back to idle
-        if not session:
-            raise RuntimeError(f"No database session available to update thread {thread_id} status")
-        await set_thread_status(session, thread_id, "idle")
+        else:
+            # Update with results (store empty JSON to avoid serialization issues for now)
+            await update_run_status(run_id, "completed", output={}, session=session)
+            # Mark thread back to idle
+            if not session:
+                raise RuntimeError(f"No database session available to update thread {thread_id} status")
+            await set_thread_status(session, thread_id, "idle")
        
     except asyncio.CancelledError:
         # Store empty output to avoid JSON serialization issues

@@ -1,31 +1,14 @@
-"""Server-Sent Events utilities and formatting - LangGraph Compatible"""
+"""Server-Sent Events utilities and formatting"""
 import json
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple, Union
+from typing import Dict, Any, Optional, Callable
 from dataclasses import dataclass
 
+# Import our serializer for handling complex objects
+from .serializers import GeneralSerializer
 
-def _serialize_message_object(obj):
-    """Custom serializer for LangChain message objects"""
-    # Handle LangChain message objects
-    if hasattr(obj, 'dict'):
-        return obj.dict()
-    elif hasattr(obj, '__dict__'):
-        # For message chunks, extract key attributes
-        result = {}
-        if hasattr(obj, 'content'):
-            result['content'] = obj.content
-        if hasattr(obj, 'additional_kwargs'):
-            result['additional_kwargs'] = obj.additional_kwargs
-        if hasattr(obj, 'response_metadata'):
-            result['response_metadata'] = obj.response_metadata
-        if hasattr(obj, 'id'):
-            result['id'] = obj.id
-        if hasattr(obj, 'type'):
-            result['type'] = obj.type
-        return result if result else str(obj)
-    else:
-        return str(obj)
+# Global serializer instance
+_serializer = GeneralSerializer()
 
 
 def get_sse_headers() -> Dict[str, str]:
@@ -39,29 +22,44 @@ def get_sse_headers() -> Dict[str, str]:
     }
 
 
-def format_sse_message(event: str, data: Any, event_id: Optional[str] = None) -> str:
-    """Format a message as Server-Sent Event following SSE standard"""
+def format_sse_message(
+    event: str, 
+    data: Any, 
+    event_id: Optional[str] = None,
+    serializer: Optional[Callable[[Any], Any]] = None
+) -> str:
+    """Format a message as Server-Sent Event following SSE standard
+    
+    Args:
+        event: SSE event type
+        data: Data to serialize and send
+        event_id: Optional event ID
+        serializer: Optional custom serializer function
+    """
     lines = []
+    
+    lines.append(f"event: {event}")
+    
+    # Convert data to JSON string
+    if data is None:
+        data_str = ""
+    else:
+        # Use our general serializer by default to handle complex objects
+        default_serializer = serializer or _serializer.serialize
+        data_str = json.dumps(data, default=default_serializer, separators=(',', ':'))
+    
+    lines.append(f"data: {data_str}")
     
     if event_id:
         lines.append(f"id: {event_id}")
     
-    lines.append(f"event: {event}")
-    
-    # Convert data to JSON string with proper message object handling
-    if data is None:
-        data_str = ""
-    else:
-        data_str = json.dumps(data, default=_serialize_message_object, separators=(',', ':'))
-    
-    lines.append(f"data: {data_str}")
     lines.append("")  # Empty line to end the event
     
     return "\n".join(lines) + "\n"
 
 
 def create_metadata_event(run_id: str, event_id: Optional[str] = None) -> str:
-    """Create metadata event - equivalent to LangGraph's metadata event"""
+    """Create metadata event"""
     data = {
         "run_id": run_id,
         "timestamp": datetime.utcnow().isoformat()
@@ -70,12 +68,17 @@ def create_metadata_event(run_id: str, event_id: Optional[str] = None) -> str:
 
 
 def create_values_event(chunk_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
-    """Create values event - equivalent to LangGraph's values stream mode"""
+    """Create values event"""
     return format_sse_message("values", chunk_data, event_id)
 
 
+def create_updates_event(updates_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
+    """Create updates event"""
+    return format_sse_message("updates", updates_data, event_id)
+
+
 def create_debug_event(debug_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
-    """Create debug event - equivalent to LangGraph's debug stream mode"""
+    """Create debug event"""
     return format_sse_message("debug", debug_data, event_id)
 
 
@@ -99,23 +102,33 @@ def create_events_event(event_data: Dict[str, Any], event_id: Optional[str] = No
 
 
 def create_state_event(state_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
-    """Create state event - equivalent to LangGraph's state stream mode"""
+    """Create state event"""
     return format_sse_message("state", state_data, event_id)
 
 
 def create_logs_event(logs_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
-    """Create logs event - equivalent to LangGraph's logs stream mode"""
+    """Create logs event"""
     return format_sse_message("logs", logs_data, event_id)
 
 
 def create_tasks_event(tasks_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
-    """Create tasks event - equivalent to LangGraph's tasks stream mode"""
+    """Create tasks event"""
     return format_sse_message("tasks", tasks_data, event_id)
 
 
 def create_subgraphs_event(subgraphs_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
-    """Create subgraphs event - equivalent to LangGraph's subgraphs stream mode"""
+    """Create subgraphs event"""
     return format_sse_message("subgraphs", subgraphs_data, event_id)
+
+
+def create_checkpoints_event(checkpoints_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
+    """Create checkpoints event"""
+    return format_sse_message("checkpoints", checkpoints_data, event_id)
+
+
+def create_custom_event(custom_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
+    """Create custom event"""
+    return format_sse_message("custom", custom_data, event_id)
 
 
 def create_messages_event(messages_data: Any, event_type: str = "messages", event_id: Optional[str] = None) -> str:
