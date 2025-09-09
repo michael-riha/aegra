@@ -8,6 +8,7 @@ from langgraph.graph import StateGraph
 from uuid import UUID, uuid5
 from ..constants import ASSISTANT_NAMESPACE_UUID
 
+from ..observability.langfuse_integration import get_tracing_callbacks
 State = TypeVar("State")
 
 
@@ -276,6 +277,30 @@ def create_run_config(run_id: str, thread_id: str, user, additional_config: Dict
             cfg["configurable"]["langgraph_auth_user"] = {
                 "identity": user.identity
             }
+
+    # Add observability callbacks from various potential sources
+    tracing_callbacks = get_tracing_callbacks()
+    if tracing_callbacks:
+        existing_callbacks = cfg.get("callbacks", [])
+        if not isinstance(existing_callbacks, list):
+            # If we want to be more robust, we can log a warning here
+            existing_callbacks = []
+        
+        # Combine existing callbacks with new tracing callbacks to be non-destructive
+        cfg["callbacks"] = existing_callbacks + tracing_callbacks
+        
+        # Add metadata for Langfuse
+        cfg.setdefault("metadata", {})
+        cfg["metadata"]["langfuse_session_id"] = thread_id
+        cfg["metadata"]["langfuse_user_id"] = user.identity
+        # cfg["metadata"]["langfuse_trace_id"] = run_id  # future work
+        cfg["metadata"]["langfuse_tags"] = [
+            "aegra_run",
+            f"run:{run_id}",
+            f"thread:{thread_id}",
+            f"user:{user.identity}"
+        ]
+
     # Apply checkpoint parameters if provided
     if checkpoint and isinstance(checkpoint, dict):
         cfg["configurable"].update({k: v for k, v in checkpoint.items() if v is not None})
