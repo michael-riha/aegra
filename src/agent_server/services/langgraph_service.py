@@ -293,7 +293,7 @@ def create_run_config(run_id: str, thread_id: str, user, additional_config: Dict
         cfg.setdefault("metadata", {})
         cfg["metadata"]["langfuse_session_id"] = thread_id
         cfg["metadata"]["langfuse_user_id"] = user.identity
-        # cfg["metadata"]["langfuse_trace_id"] = run_id ## future work 
+        # cfg["metadata"]["langfuse_trace_id"] = run_id  # future work
         cfg["metadata"]["langfuse_tags"] = [
             "aegra_run",
             f"run:{run_id}",
