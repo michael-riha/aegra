@@ -133,7 +133,6 @@ class LangGraphService:
         if hasattr(base_graph, 'compile'):
             # The module exported an *uncompiled* StateGraph – compile it now with
             # a Postgres checkpointer for durable state.
-            from ..core.database import db_manager
             checkpointer_cm = await db_manager.get_checkpointer()
             store_cm = await db_manager.get_store()
             print(f"🔧 Compiling graph '{graph_id}' with Postgres persistence")
@@ -142,7 +141,6 @@ class LangGraphService:
             # Graph was already compiled by the module.  Create a shallow copy
             # that injects our Postgres checkpointer *unless* the author already
             # set one.
-            from ..core.database import db_manager
             checkpointer_cm = await db_manager.get_checkpointer()
             try:
                 store_cm = await db_manager.get_store()
@@ -168,6 +166,9 @@ class LangGraphService:
             f"graphs.{graph_id}",
             str(file_path.resolve())
         )
+        if spec is None or spec.loader is None:
+            raise ValueError(f"Failed to load graph module: {file_path}")
+        
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         
@@ -202,6 +203,8 @@ class LangGraphService:
     
     def get_dependencies(self) -> list:
         """Get dependencies from config"""
+        if self.config is None:
+            return []
         return self.config.get("dependencies", [])
 
 
@@ -222,9 +225,21 @@ def inject_user_context(user, base_config: Dict = None) -> Dict:
     config = (base_config or {}).copy()
     config["configurable"] = config.get("configurable", {})
     
-    # Simple user-based data scoping
-    config["configurable"]["user_id"] = user.identity
-    config["configurable"]["user_display_name"] = getattr(user, "display_name", user.identity)
+    # All user-related data injection (only if user exists)
+    if user:
+        # Basic user identity for multi-tenant scoping
+        config["configurable"].setdefault("user_id", user.identity)
+        config["configurable"].setdefault("user_display_name", getattr(user, "display_name", user.identity))
+        
+        # Full auth payload for graph nodes
+        if "langgraph_auth_user" not in config["configurable"]:
+            try:
+                config["configurable"]["langgraph_auth_user"] = user.to_dict()  # type: ignore[attr-defined]
+            except Exception:
+                # Fallback: minimal dict if to_dict unavailable
+                config["configurable"]["langgraph_auth_user"] = {
+                    "identity": user.identity
+                }
     
     return config
 
@@ -261,23 +276,6 @@ def create_run_config(run_id: str, thread_id: str, user, additional_config: Dict
     cfg["configurable"].setdefault("thread_id", thread_id)
     cfg["configurable"].setdefault("run_id", run_id)
 
-    # Basic user identity for multi-tenant scoping
-    cfg["configurable"].setdefault("user_id", user.identity)
-    cfg["configurable"].setdefault(
-        "user_display_name", getattr(user, "display_name", user.identity)
-    )
-
-    # Full auth payload so graph nodes can do things like
-    #   auth_ctx = config["configurable"]["langgraph_auth_user"]
-    if "langgraph_auth_user" not in cfg["configurable"]:
-        try:
-            cfg["configurable"]["langgraph_auth_user"] = user.to_dict()  # type: ignore[attr-defined]
-        except Exception:
-            # Fallback: minimal dict if to_dict unavailable
-            cfg["configurable"]["langgraph_auth_user"] = {
-                "identity": user.identity
-            }
-
     # Add observability callbacks from various potential sources
     tracing_callbacks = get_tracing_callbacks()
     if tracing_callbacks:
@@ -292,18 +290,24 @@ def create_run_config(run_id: str, thread_id: str, user, additional_config: Dict
         # Add metadata for Langfuse
         cfg.setdefault("metadata", {})
         cfg["metadata"]["langfuse_session_id"] = thread_id
-        cfg["metadata"]["langfuse_user_id"] = user.identity
-        # cfg["metadata"]["langfuse_trace_id"] = run_id  # future work
-        cfg["metadata"]["langfuse_tags"] = [
-            "aegra_run",
-            f"run:{run_id}",
-            f"thread:{thread_id}",
-            f"user:{user.identity}"
-        ]
+        if user:
+            cfg["metadata"]["langfuse_user_id"] = user.identity
+            cfg["metadata"]["langfuse_tags"] = [
+                "aegra_run",
+                f"run:{run_id}",
+                f"thread:{thread_id}",
+                f"user:{user.identity}"
+            ]
+        else:
+            cfg["metadata"]["langfuse_tags"] = [
+                "aegra_run",
+                f"run:{run_id}",
+                f"thread:{thread_id}"
+            ]
 
     # Apply checkpoint parameters if provided
     if checkpoint and isinstance(checkpoint, dict):
         cfg["configurable"].update({k: v for k, v in checkpoint.items() if v is not None})
 
-    # Finally inject any remaining user context via existing helper
+    # Finally inject user context via existing helper
     return inject_user_context(user, cfg)
