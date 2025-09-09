@@ -15,7 +15,7 @@ from ..core.orm import (
     _get_session_maker
 )
 from fastapi.responses import StreamingResponse
-from langgraph.types import Command
+from langgraph.types import Command, Send
 
 from ..models import Run, RunCreate, RunList, RunStatus, User
 from ..core.auth_deps import get_current_user
@@ -37,6 +37,34 @@ active_runs: Dict[str, asyncio.Task] = {}
 
 # Default stream modes for background run execution
 DEFAULT_STREAM_MODES = ["values"]
+
+
+def map_command_to_langgraph(cmd: Dict[str, Any]) -> Command:
+    """Convert API command to LangGraph Command - similar to langgraph_api/command.py"""
+    goto = cmd.get("goto")
+    if goto is not None and not isinstance(goto, list):
+        goto = [goto]
+
+    update = cmd.get("update")
+    if isinstance(update, (tuple, list)) and all(
+        isinstance(t, (tuple, list)) and len(t) == 2 and isinstance(t[0], str)
+        for t in update
+    ):
+        update = [tuple(t) for t in update]
+
+    return Command(
+        update=update,
+        goto=(
+            [
+                it if isinstance(it, str) else Send(it["node"], it["input"])
+                for it in goto
+            ]
+            if goto
+            else None
+        ),
+        resume=cmd.get("resume"),
+    )
+
 
 async def set_thread_status(session: AsyncSession, thread_id: str, status: str):
     """Update the status column of a thread."""
@@ -78,6 +106,16 @@ async def create_run(
     session: AsyncSession = Depends(get_session)
 ):
     """Create and execute a new run (persisted)."""
+
+    # Validate resume command requirements early
+    if request.command and request.command.get("resume") is not None:
+        # Check if thread exists and is in interrupted state
+        thread_stmt = select(ThreadORM).where(ThreadORM.thread_id == thread_id)
+        thread = await session.scalar(thread_stmt)
+        if not thread:
+            raise HTTPException(404, f"Thread '{thread_id}' not found")
+        if thread.status != "interrupted":
+            raise HTTPException(400, "Cannot resume: thread is not in interrupted state")
 
     run_id = str(uuid4())
 
@@ -193,6 +231,17 @@ async def create_and_stream_run(
     session: AsyncSession = Depends(get_session)
 ):
     """Create a new run and stream its execution - persisted + SSE."""
+    
+    # Validate resume command requirements early
+    if request.command and request.command.get("resume") is not None:
+        # Check if thread exists and is in interrupted state
+        thread_stmt = select(ThreadORM).where(ThreadORM.thread_id == thread_id)
+        thread = await session.scalar(thread_stmt)
+        if not thread:
+            raise HTTPException(404, f"Thread '{thread_id}' not found")
+        if thread.status != "interrupted":
+            raise HTTPException(400, "Cannot resume: thread is not in interrupted state")
+
     run_id = str(uuid4())
 
     # Get LangGraph service
@@ -622,25 +671,16 @@ async def execute_run_async(
         # It controls concurrent run behavior, not graph execution behavior
         
         # Determine input for execution (either input_data or command)
-        execution_input = input_data
         if command is not None:
-            # When resuming with command, convert to LangGraph Command format
-            # According to LangGraph docs: Command(resume=value, update=dict)
-            
-            
+            # When command is provided, it replaces input entirely (LangGraph API behavior)
             if isinstance(command, dict):
-                # Extract resume value and update dict from our command format
-                resume_value = command.get("resume")
-                update_dict = command.get("update", {})
-                
-                if resume_value is not None:
-                    execution_input = Command(resume=resume_value, update=update_dict)
-                else:
-                    # Fallback: treat entire command as update
-                    execution_input = Command(update=command)
+                execution_input = map_command_to_langgraph(command)
             else:
-                # Direct resume value
+                # Direct resume value (backward compatibility)
                 execution_input = Command(resume=command)
+        else:
+            # No command, use regular input
+            execution_input = input_data
         
         # Execute using streaming to capture events for later replay
         event_counter = 0
@@ -702,6 +742,7 @@ async def execute_run_async(
             if not session:
                 raise RuntimeError(f"No database session available to update thread {thread_id} status")
             await set_thread_status(session, thread_id, "interrupted")
+
         else:
             # Update with results (store empty JSON to avoid serialization issues for now)
             await update_run_status(run_id, "completed", output={}, session=session)
