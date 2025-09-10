@@ -40,7 +40,7 @@ DEFAULT_STREAM_MODES = ["values"]
 
 
 def map_command_to_langgraph(cmd: Dict[str, Any]) -> Command:
-    """Convert API command to LangGraph Command - similar to langgraph_api/command.py"""
+    """Convert API command to LangGraph Command"""
     goto = cmd.get("goto")
     if goto is not None and not isinstance(goto, list):
         goto = [goto]
