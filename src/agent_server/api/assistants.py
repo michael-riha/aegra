@@ -74,10 +74,11 @@ async def create_assistant(
     # Generate name if not provided
     name = request.name or f"Assistant for {graph_id}"
     
-    # Check if an assistant already exists for this assistant_id and user
+    # Check if an assistant already exists for this user, graph and config pair
     existing_stmt = select(AssistantORM).where(
         AssistantORM.user_id == user.identity,
-        AssistantORM.assistant_id == request.assistant_id,
+        AssistantORM.graph_id == graph_id,
+        AssistantORM.config == config
     )
     existing = await session.scalar(existing_stmt)
     
