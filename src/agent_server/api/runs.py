@@ -2,7 +2,7 @@
 import asyncio
 from uuid import uuid4
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Union, List, Any
 from fastapi import APIRouter, HTTPException, Depends, Header, Query
 import logging
 from sqlalchemy import select, update, delete
@@ -15,6 +15,7 @@ from ..core.orm import (
     _get_session_maker
 )
 from fastapi.responses import StreamingResponse
+from langgraph.types import Command, Send
 
 from ..models import Run, RunCreate, RunList, RunStatus, User
 from ..core.auth_deps import get_current_user
@@ -35,7 +36,35 @@ logger = logging.getLogger(__name__)
 active_runs: Dict[str, asyncio.Task] = {}
 
 # Default stream modes for background run execution
-RUN_STREAM_MODES = ["messages", "values", "custom"]
+DEFAULT_STREAM_MODES = ["values"]
+
+
+def map_command_to_langgraph(cmd: Dict[str, Any]) -> Command:
+    """Convert API command to LangGraph Command"""
+    goto = cmd.get("goto")
+    if goto is not None and not isinstance(goto, list):
+        goto = [goto]
+
+    update = cmd.get("update")
+    if isinstance(update, (tuple, list)) and all(
+        isinstance(t, (tuple, list)) and len(t) == 2 and isinstance(t[0], str)
+        for t in update
+    ):
+        update = [tuple(t) for t in update]
+
+    return Command(
+        update=update,
+        goto=(
+            [
+                it if isinstance(it, str) else Send(it["node"], it["input"])
+                for it in goto
+            ]
+            if goto
+            else None
+        ),
+        resume=cmd.get("resume"),
+    )
+
 
 async def set_thread_status(session: AsyncSession, thread_id: str, status: str):
     """Update the status column of a thread."""
@@ -77,6 +106,16 @@ async def create_run(
     session: AsyncSession = Depends(get_session)
 ):
     """Create and execute a new run (persisted)."""
+
+    # Validate resume command requirements early
+    if request.command and request.command.get("resume") is not None:
+        # Check if thread exists and is in interrupted state
+        thread_stmt = select(ThreadORM).where(ThreadORM.thread_id == thread_id)
+        thread = await session.scalar(thread_stmt)
+        if not thread:
+            raise HTTPException(404, f"Thread '{thread_id}' not found")
+        if thread.status != "interrupted":
+            raise HTTPException(400, "Cannot resume: thread is not in interrupted state")
 
     run_id = str(uuid4())
 
@@ -172,6 +211,10 @@ async def create_run(
             request.stream_mode,
             None,  # Don't pass session to avoid conflicts
             request.checkpoint,
+            request.command,
+            request.interrupt_before,
+            request.interrupt_after,
+            request.multitask_strategy,
         )
     )
     print(f"[create_run] background task created task_id={id(task)} for run_id={run_id}")
@@ -188,6 +231,17 @@ async def create_and_stream_run(
     session: AsyncSession = Depends(get_session)
 ):
     """Create a new run and stream its execution - persisted + SSE."""
+    
+    # Validate resume command requirements early
+    if request.command and request.command.get("resume") is not None:
+        # Check if thread exists and is in interrupted state
+        thread_stmt = select(ThreadORM).where(ThreadORM.thread_id == thread_id)
+        thread = await session.scalar(thread_stmt)
+        if not thread:
+            raise HTTPException(404, f"Thread '{thread_id}' not found")
+        if thread.status != "interrupted":
+            raise HTTPException(400, "Cannot resume: thread is not in interrupted state")
+
     run_id = str(uuid4())
 
     # Get LangGraph service
@@ -281,6 +335,10 @@ async def create_and_stream_run(
             request.stream_mode,
             None,  # Don't pass session to avoid conflicts
             request.checkpoint,
+            request.command,
+            request.interrupt_before,
+            request.interrupt_after,
+            request.multitask_strategy,
         )
     )
     print(f"[create_and_stream_run] background task created task_id={id(task)} for run_id={run_id}")
@@ -574,6 +632,10 @@ async def execute_run_async(
     stream_mode: Optional[list[str]] = None,
     session: Optional[AsyncSession] = None,
     checkpoint: Optional[dict] = None,
+    command: Optional[Dict[str, Any]] = None,
+    interrupt_before: Optional[Union[str, List[str]]] = None,
+    interrupt_after: Optional[Union[str, List[str]]] = None,
+    multitask_strategy: Optional[str] = None,
 ):
     
     """Execute run asynchronously in background using streaming to capture all events"""    # Use provided session or get a new one
@@ -599,23 +661,74 @@ async def execute_run_async(
         
         run_config = create_run_config(run_id, thread_id, user, config or {}, checkpoint)
         
-        # Always execute using streaming to capture events for later replay
+        # Handle human-in-the-loop fields
+        if interrupt_before is not None:
+            run_config["interrupt_before"] = interrupt_before if isinstance(interrupt_before, list) else [interrupt_before]
+        if interrupt_after is not None:
+            run_config["interrupt_after"] = interrupt_after if isinstance(interrupt_after, list) else [interrupt_after]
+        
+        # Note: multitask_strategy is handled at the run creation level, not execution level
+        # It controls concurrent run behavior, not graph execution behavior
+        
+        # Determine input for execution (either input_data or command)
+        if command is not None:
+            # When command is provided, it replaces input entirely (LangGraph API behavior)
+            if isinstance(command, dict):
+                execution_input = map_command_to_langgraph(command)
+            else:
+                # Direct resume value (backward compatibility)
+                execution_input = Command(resume=command)
+        else:
+            # No command, use regular input
+            execution_input = input_data
+        
+        # Execute using streaming to capture events for later replay
         event_counter = 0
         final_output = None
+        has_interrupt = False
+        
+        # Prepare stream modes for execution
+        if stream_mode is None:
+            final_stream_modes = DEFAULT_STREAM_MODES.copy()
+        elif isinstance(stream_mode, str):
+            final_stream_modes = [stream_mode]
+        else:
+            final_stream_modes = stream_mode.copy()
+            
+        # Ensure interrupt events are captured by including updates mode
+        # Track whether updates was explicitly requested by user
+        user_requested_updates = "updates" in final_stream_modes
+        if not user_requested_updates:
+            final_stream_modes.append("updates")
+            
+        only_interrupt_updates = not user_requested_updates
+        
         # Use streaming service's broker system to distribute events
         async with with_auth_ctx(user, []):
             async for raw_event in graph.astream(
-                input_data,
+                execution_input,
                 config=run_config,
                 context=context,
-                stream_mode=stream_mode or RUN_STREAM_MODES,
+                stream_mode=final_stream_modes,
             ):
                 event_counter += 1
                 event_id = f"{run_id}_event_{event_counter}"
+                
                 # Forward to broker for live consumers
-                await streaming_service.put_to_broker(run_id, event_id, raw_event)
+                await streaming_service.put_to_broker(run_id, event_id, raw_event, only_interrupt_updates=only_interrupt_updates)
                 # Store for replay
-                await streaming_service.store_event_from_raw(run_id, event_id, raw_event)
+                await streaming_service.store_event_from_raw(run_id, event_id, raw_event, only_interrupt_updates=only_interrupt_updates)
+                
+                # Check for interrupt in this event
+                event_data = None
+                if isinstance(raw_event, tuple) and len(raw_event) >= 2:
+                    event_data = raw_event[1]
+                elif not isinstance(raw_event, tuple):
+                    event_data = raw_event
+                
+                if isinstance(event_data, dict) and "__interrupt__" in event_data:
+                    has_interrupt = True
+                
                 # Track final output
                 if isinstance(raw_event, tuple):
                     if len(raw_event) >= 2 and raw_event[0] == "values":
@@ -623,22 +736,21 @@ async def execute_run_async(
                 elif not isinstance(raw_event, tuple):
                     # Non-tuple events are values mode
                     final_output = raw_event
+        
+        if has_interrupt:
+            await update_run_status(run_id, "interrupted", output={}, session=session)
+            if not session:
+                raise RuntimeError(f"No database session available to update thread {thread_id} status")
+            await set_thread_status(session, thread_id, "interrupted")
 
-        # Signal end of stream
-        event_counter += 1
-        end_event_id = f"{run_id}_event_{event_counter}"
-        end_event = ("end", {"status": "completed", "final_output": final_output})
-        
-        await streaming_service.put_to_broker(run_id, end_event_id, end_event)
-        await streaming_service.store_event_from_raw(run_id, end_event_id, end_event)
-        
-        # Update with results (store empty JSON to avoid serialization issues for now)
-        await update_run_status(run_id, "completed", output={}, session=session)
-        # Mark thread back to idle
-        if not session:
-            raise RuntimeError(f"No database session available to update thread {thread_id} status")
-        await set_thread_status(session, thread_id, "idle")
-        
+        else:
+            # Update with results (store empty JSON to avoid serialization issues for now)
+            await update_run_status(run_id, "completed", output={}, session=session)
+            # Mark thread back to idle
+            if not session:
+                raise RuntimeError(f"No database session available to update thread {thread_id} status")
+            await set_thread_status(session, thread_id, "idle")
+       
     except asyncio.CancelledError:
         # Store empty output to avoid JSON serialization issues
         await update_run_status(run_id, "cancelled", output={}, session=session)

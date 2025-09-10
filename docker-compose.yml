@@ -31,6 +31,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
+      - ./aegra.json:/app/aegra.json:ro
       - ./graphs:/app/graphs:ro
       - ./src:/app/src:ro # for hot reload support of server
       - ./auth.py:/app/auth.py:ro
