@@ -246,6 +246,8 @@ OPENAI_API_KEY=sk-...
 - Streaming responses with network resilience
 - Config-driven agent graph management
 - Compatible with LangGraph Client SDK
+- Human-in-the-loop support
+- Langfuse integration for observability and tracing
 
 ### ✅ **Production Ready**
 
@@ -282,20 +284,21 @@ OPENAI_API_KEY=sk-...
 - Agent Protocol API implementation
 - PostgreSQL persistence and streaming
 - Authentication framework
+- Human-in-the-loop support
+- Langfuse integration
 
 **🎯 Next**
 
-- Human-in-the-loop interrupts
+- Custom HTTP endpoints support
+- Generative user interfaces support
 - Redis-backed streaming buffers
-- Langfuse integration
 - Advanced deployment recipes
 
 **🚀 Future**
 
-- Multi-tenant architecture
 - Performance optimizations
-- Additional LLM provider integrations
 - Custom UI themes and branding
+- Aegra CLI for migration and image building
 
 ## 🤝 Contributing
 
