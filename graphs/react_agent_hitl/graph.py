@@ -3,14 +3,15 @@
 Works with a chat model with tool calling support.
 """
 
+import json
 from datetime import UTC, datetime
 from typing import Dict, List, Literal, cast
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage, HumanMessage
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langgraph.runtime import Runtime
-from langgraph.types import interrupt
+from langgraph.types import interrupt, Command
 
 from react_agent_hitl.context import Context
 from react_agent_hitl.state import InputState, State
@@ -65,60 +66,103 @@ async def call_model(
     return {"messages": [response]}
 
 
-async def human_approval(
-    state: State, runtime: Runtime[Context]
-) -> Dict:
-    """Request human approval before executing tools.
-    
-    This node demonstrates the human-in-the-loop interrupt functionality.
-    It pauses execution and waits for human input before proceeding.
-    
-    This node does NOT modify the messages - it only handles the interrupt.
-    """
-    # Find the last message with tool calls
-    tool_message = None
-    for msg in reversed(state.messages):
+def _find_tool_message(messages: List) -> AIMessage | None:
+    """Find the last AI message with tool calls."""
+    for msg in reversed(messages):
         if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
-            tool_message = msg
-            break
-    
+            return msg
+    return None
+
+
+def _create_tool_cancellations(tool_calls: List, reason: str) -> List[ToolMessage]:
+    """Create cancellation messages for tool calls."""
+    return [
+        ToolMessage(
+            content=f"Tool execution {reason}.",
+            tool_call_id=tc["id"],
+            name=tc["name"]
+        )
+        for tc in tool_calls
+    ]
+
+
+def _parse_args(args) -> dict:
+    """Parse args, handling JSON strings."""
+    if isinstance(args, str):
+        try:
+            return json.loads(args)
+        except json.JSONDecodeError:
+            return {}
+    return args if isinstance(args, dict) else {}
+
+
+def _update_tool_calls(original_calls: List, edited_args: dict) -> List:
+    """Update tool calls with edited arguments."""
+    updated_calls = []
+    for call in original_calls:
+        updated_call = call.copy()
+        tool_name = call["name"]
+        
+        if tool_name in edited_args.get("args", {}):
+            updated_call["args"] = _parse_args(edited_args["args"][tool_name])
+        else:
+            updated_call["args"] = _parse_args(call["args"])
+            
+        updated_calls.append(updated_call)
+    return updated_calls
+
+
+async def human_approval(state: State, runtime: Runtime[Context]) -> Command:
+    """Request human approval before executing tools."""
+    # TODO: Fix Mark as Resolved functionality
+    # ISSUE: Command(goto=END) creates infinite loop due to LangGraph bug
+    # GITHUB ISSUE: https://github.com/langchain-ai/langgraph/issues/5572
+    # The goto=END command gets ignored and creates "branch:to:__end__" channel error
+    tool_message = _find_tool_message(state.messages)
     if not tool_message:
-        print("No tool calls found to approve.")
-        return {}  # No state changes
+        return Command(goto=END)
     
-    print("---Human Approval Required---")
-    print(f"The agent wants to execute {len(tool_message.tool_calls)} tool(s)")
-    
-    # Show tool details
-    for tool_call in tool_message.tool_calls:
-        print(f"  - {tool_call['name']}: {tool_call.get('args', {})}")
-    
-    # This will pause execution and wait for human input
-    # The approval/denial is handled by the interrupt system, not by modifying messages
-    approval = interrupt({
-        "message": "Do you approve tool execution?", 
-        "tools": [{"name": tc["name"], "args": tc.get("args", {})} for tc in tool_message.tool_calls]
+    human_response = interrupt({
+        "action_request": {
+            "action": "tool_execution",
+            "args": {tc["name"]: tc.get("args", {}) for tc in tool_message.tool_calls}
+        },
+        "config": {
+            "allow_respond": True,
+            "allow_accept": True, 
+            "allow_edit": True,
+            "allow_ignore": True
+        }
     })
     
-    approval_str = str(approval).lower().strip() if approval else "no"
-    print(f"Human approval: {approval_str}")
+    if not human_response or not isinstance(human_response, list):
+        return Command(goto=END)
     
-    approved = approval_str.startswith('y')
+    response = human_response[0]
+    response_type = response.get("type", "")
+    response_args = response.get("args")
     
-    if not approved:
-        # Human denied - we need to create tool responses to satisfy OpenAI's requirements
-        # Otherwise OpenAI will throw error about missing tool responses
-        tool_responses = []
-        for tool_call in tool_message.tool_calls:
-            tool_responses.append(ToolMessage(
-                content="Tool execution cancelled by human operator.",
-                tool_call_id=tool_call["id"],
-                name=tool_call["name"]
-            ))
-        return {"human_approved": False, "messages": tool_responses}
-    
-    # Store the approval decision in a custom state field (not messages)
-    return {"human_approved": True}
+    if response_type == "accept":
+        return Command(goto="tools")
+        
+    elif response_type == "response":
+        tool_responses = _create_tool_cancellations(tool_message.tool_calls, "was interrupted for human input")
+        human_message = HumanMessage(content=str(response_args))
+        return Command(goto="call_model", update={"messages": tool_responses + [human_message]})
+        
+    elif response_type == "edit" and isinstance(response_args, dict) and "args" in response_args:
+        updated_calls = _update_tool_calls(tool_message.tool_calls, response_args)
+        updated_message = AIMessage(
+            content=tool_message.content,
+            tool_calls=updated_calls,
+            id=tool_message.id
+        )
+        return Command(goto="tools", update={"messages": [updated_message]})
+        
+    else:  # ignore or invalid
+        reason = "cancelled by human operator" if response_type == "ignore" else "invalid format"
+        tool_responses = _create_tool_cancellations(tool_message.tool_calls, reason)
+        return Command(goto=END, update={"messages": tool_responses})
 
 
 # Define a new graph
@@ -159,22 +203,6 @@ def route_model_output(state: State) -> Literal["__end__", "human_approval"]:
     return "human_approval"
 
 
-def route_after_approval(state: State) -> Literal["__end__", "tools"]:
-    """Route after human approval.
-    
-    Check if human approved or denied the tool execution using the state field.
-    """
-    # Check the human_approved state field set by the human_approval node
-    if state.human_approved:
-        # Human approved - check if we have tool calls to execute
-        for msg in reversed(state.messages):
-            if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
-                return "tools"
-    
-    # Human denied or no tool calls found
-    return "__end__"
-
-
 # Add conditional edges
 builder.add_conditional_edges(
     "call_model",
@@ -182,11 +210,6 @@ builder.add_conditional_edges(
     path_map=["human_approval", END]
 )
 
-builder.add_conditional_edges(
-    "human_approval",
-    route_after_approval,
-    path_map=["tools", END]
-)
 
 # Add a normal edge from `tools` to `call_model`
 # This creates a cycle: after using tools, we always return to the model

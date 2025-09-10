@@ -53,13 +53,6 @@ class State(InputState):
     It is set to 'True' when the step count reaches recursion_limit - 1.
     """
 
-    human_approved: bool = field(default=False)
-    """
-    Tracks whether human has approved tool execution.
-    
-    This is set by the human_approval node and used by routing logic
-    to determine whether to proceed with tool execution or stop.
-    """
 
     # Additional attributes can be added here as needed.
     # Common examples include:

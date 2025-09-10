@@ -46,8 +46,13 @@ class RunCreate(BaseModel):
     @model_validator(mode='after')
     def validate_input_command_exclusivity(self):
         """Ensure input and command are mutually exclusive"""
+        # Allow empty input dict when command is present (frontend compatibility)
         if self.input is not None and self.command is not None:
-            raise ValueError("Cannot specify both 'input' and 'command' - they are mutually exclusive")
+            # If input is just an empty dict, treat it as None for compatibility
+            if self.input == {}:
+                self.input = None
+            else:
+                raise ValueError("Cannot specify both 'input' and 'command' - they are mutually exclusive")
         if self.input is None and self.command is None:
             raise ValueError("Must specify either 'input' or 'command'")
         return self
