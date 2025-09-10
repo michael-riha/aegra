@@ -14,9 +14,8 @@ class BaseRunBroker(ABC):
     @abstractmethod
     async def aiter(self) -> AsyncIterator[Tuple[str, Any]]:
         """Async iterator yielding (event_id, payload) pairs"""
-        # The 'yield' statement makes this an async generator
-        if False:
-            yield
+        # Abstract async generator method; must be implemented by subclass
+        raise NotImplementedError("aiter method must be implemented by subclass")
 
     @abstractmethod
     def mark_finished(self) -> None:
