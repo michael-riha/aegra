@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import text, bindparam
 from sqlalchemy.dialects.postgresql import JSONB
 
-from ..core.sse import SSEEvent, _serialize_message_object
+from ..core.sse import SSEEvent
+from ..core.serializers import GeneralSerializer
 import json
 from ..core.database import db_manager
 
@@ -167,9 +168,12 @@ event_store = EventStore()
 
 
 async def store_sse_event(run_id: str, event_id: str, event_type: str, data: Dict):
-    # Ensure JSONB-safe data by serializing complex message objects
+    """Store SSE event with proper serialization"""
+    serializer = GeneralSerializer()
+    
+    # Ensure JSONB-safe data by serializing complex objects
     try:
-        safe_data = json.loads(json.dumps(data, default=_serialize_message_object))
+        safe_data = json.loads(json.dumps(data, default=serializer.serialize))
     except Exception:
         # Fallback to stringifying as a last resort to avoid crashing the run
         safe_data = {"raw": str(data)}

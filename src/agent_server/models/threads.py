@@ -46,17 +46,18 @@ class ThreadSearchResponse(BaseModel):
 
 
 class ThreadCheckpoint(BaseModel):
-    """Checkpoint identifier for thread history - matches competitor format"""
+    """Checkpoint identifier for thread history"""
     checkpoint_id: Optional[str] = None
     thread_id: Optional[str] = None
     checkpoint_ns: Optional[str] = ""
 
 
 class ThreadState(BaseModel):
-    """Thread state model for history endpoint - matches competitor format"""
+    """Thread state model for history endpoint"""
     values: Dict[str, Any] = Field(description="Channel values (messages, etc.)")
     next: List[str] = Field(default_factory=list, description="Next nodes to execute")
     tasks: List[Dict[str, Any]] = Field(default_factory=list, description="Tasks to execute")
+    interrupts: List[Dict[str, Any]] = Field(default_factory=list, description="Interrupt data")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Checkpoint metadata")
     created_at: Optional[datetime] = Field(None, description="Timestamp of state creation")
     checkpoint: ThreadCheckpoint = Field(description="Current checkpoint")
