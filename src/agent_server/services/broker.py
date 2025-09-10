@@ -3,10 +3,11 @@ import asyncio
 from typing import Any, AsyncIterator, Tuple
 import logging
 
+from .base_broker import BaseRunBroker, BaseBrokerManager
 logger = logging.getLogger(__name__)
 
 
-class RunBroker:
+class RunBroker(BaseRunBroker):
     """Manages event queuing and distribution for a specific run"""
     
     def __init__(self, run_id: str):
@@ -63,7 +64,7 @@ class RunBroker:
         return asyncio.get_event_loop().time() - self._created_at
 
 
-class BrokerManager:
+class BrokerManager(BaseBrokerManager):
     """Manages multiple RunBroker instances"""
     
     def __init__(self):
