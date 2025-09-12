@@ -289,7 +289,7 @@ async def delete_assistant(
     """Delete assistant by ID"""
     # First delete all versions
     stmt = delete(AssistantVersionORM).where(
-        AssistantORM.assistant_id == assistant_id
+        AssistantVersionORM.assistant_id == assistant_id
     )
     await session.execute(stmt)
     await session.commit()
