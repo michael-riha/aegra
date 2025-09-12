@@ -4,7 +4,7 @@ from datetime import datetime, UTC
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends, Body
 import uuid
-from sqlalchemy import select, update, delete, func
+from sqlalchemy import select, update, delete, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import Assistant, AssistantCreate, AssistantUpdate, AssistantList, AssistantSearchRequest, AssistantSearchResponse, AgentSchemas, User
@@ -77,23 +77,15 @@ async def create_assistant(
     # Check if an assistant already exists for this user, graph and config pair
     existing_stmt = select(AssistantORM).where(
         AssistantORM.user_id == user.identity,
-        AssistantORM.graph_id == graph_id,
-        AssistantORM.config == config
+        or_(
+            (AssistantORM.graph_id == graph_id) & (AssistantORM.config == config),
+            AssistantORM.assistant_id == assistant_id
+        )
     )
     existing = await session.scalar(existing_stmt)
     
     if existing:
         if request.if_exists == "do_nothing":
-            return to_pydantic(existing)
-        elif request.if_exists == "replace":
-            # Update existing assistant
-            existing.name = name
-            existing.description = request.description
-            existing.config = request.config or {}
-            existing.context = request.context or {}
-            existing.graph_id = graph_id
-            existing.updated_at = datetime.now(UTC)
-            await session.commit()
             return to_pydantic(existing)
         else:  # error (default)
             raise HTTPException(409, f"Assistant '{assistant_id}' already exists")
@@ -251,7 +243,8 @@ async def update_assistant(
     version_stmt = select(func.max(AssistantVersionORM.version)).where(
         AssistantVersionORM.assistant_id == assistant_id
     )
-    new_version = await session.scalar(version_stmt) + 1
+    max_version = await session.scalar(version_stmt)
+    new_version = (max_version or 1) + 1  if max_version is not None else 1
 
     new_version_details = {
         "assistant_id": assistant_id,
@@ -294,6 +287,14 @@ async def delete_assistant(
     session: AsyncSession = Depends(get_session)
 ):
     """Delete assistant by ID"""
+    # First delete all versions
+    stmt = delete(AssistantVersionORM).where(
+        AssistantORM.assistant_id == assistant_id
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+    # Then delete the assistant itself
     stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == assistant_id,
         AssistantORM.user_id == user.identity
@@ -305,6 +306,7 @@ async def delete_assistant(
     
     await session.delete(assistant)
     await session.commit()
+
     return {"status": "deleted"}
 
 
