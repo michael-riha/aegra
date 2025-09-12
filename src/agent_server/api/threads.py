@@ -15,6 +15,7 @@ from ..core.auth_deps import get_current_user
 from ..core.orm import Thread as ThreadORM, Run as RunORM, get_session
 from ..core.database import db_manager
 from ..services.streaming_service import streaming_service
+from ..services.thread_state_service import ThreadStateService
 from ..api.runs import active_runs
 
 # TODO: adopt structured logging across all modules; replace print() and bare exceptions in:
@@ -26,6 +27,8 @@ from ..api.runs import active_runs
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+thread_state_service = ThreadStateService()
 
 
 # In-memory storage removed; using database via ORM
@@ -232,45 +235,11 @@ async def get_thread_history_post(
             async for snapshot in agent.aget_state_history(config, **kwargs):
                 state_snapshots.append(snapshot)
 
-        # Map to ThreadState
-        thread_states: List[ThreadState] = []
-        for snapshot in state_snapshots:
-            snap_config = getattr(snapshot, "config", {}) or {}
-            parent_config = getattr(snapshot, "parent_config", {}) or {}
-            checkpoint_id = None
-            parent_checkpoint_id = None
-            if isinstance(snap_config, dict):
-                checkpoint_id = (snap_config.get("configurable") or {}).get("checkpoint_id")
-            if isinstance(parent_config, dict):
-                parent_checkpoint_id = (parent_config.get("configurable") or {}).get("checkpoint_id")
-
-            created_at = getattr(snapshot, "created_at", None)
-
-            current_checkpoint = ThreadCheckpoint(
-                checkpoint_id=checkpoint_id,
-                thread_id=thread_id,
-                checkpoint_ns=(snap_config.get("configurable") or {}).get("checkpoint_ns", "") if isinstance(snap_config, dict) else "",
-            )
-            parent_checkpoint = None
-            if parent_checkpoint_id:
-                parent_checkpoint = ThreadCheckpoint(
-                    checkpoint_id=parent_checkpoint_id,
-                    thread_id=thread_id,
-                    checkpoint_ns=(parent_config.get("configurable") or {}).get("checkpoint_ns", "") if isinstance(parent_config, dict) else "",
-                )
-
-            thread_state = ThreadState(
-                values=getattr(snapshot, "values", {}),
-                next=getattr(snapshot, "next", []) or [],
-                tasks=[],  # TODO: serialize tasks if required
-                metadata=getattr(snapshot, "metadata", {}) or {},
-                created_at=created_at,
-                checkpoint=current_checkpoint,
-                parent_checkpoint=parent_checkpoint,
-                checkpoint_id=checkpoint_id,
-                parent_checkpoint_id=parent_checkpoint_id,
-            )
-            thread_states.append(thread_state)
+        # Convert snapshots to ThreadState using service
+        thread_states = thread_state_service.convert_snapshots_to_thread_states(
+            state_snapshots, 
+            thread_id
+        )
 
         return thread_states
 
