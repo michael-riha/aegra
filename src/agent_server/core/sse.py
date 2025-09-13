@@ -1,7 +1,7 @@
 """Server-Sent Events utilities and formatting"""
 import json
-from datetime import datetime
-from typing import Dict, Any, Optional, Callable
+from datetime import datetime, UTC
+from typing import Dict, Any, Optional, Callable, Tuple, Union
 from dataclasses import dataclass
 
 # Import our serializer for handling complex objects
@@ -62,7 +62,7 @@ def create_metadata_event(run_id: str, event_id: Optional[str] = None) -> str:
     """Create metadata event"""
     data = {
         "run_id": run_id,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(UTC).isoformat()
     }
     return format_sse_message("metadata", data, event_id)
 
@@ -91,7 +91,7 @@ def create_error_event(error: str, event_id: Optional[str] = None) -> str:
     """Create error event"""
     data = {
         "error": error,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(UTC).isoformat()
     }
     return format_sse_message("error", data, event_id)
 
@@ -152,11 +152,11 @@ class SSEEvent:
     event: str
     data: Dict[str, Any]
     timestamp: datetime = None
-    
+
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
-    
+            self.timestamp = datetime.now(UTC)
+
     def format(self) -> str:
         """Format as proper SSE event - deprecated"""
         json_data = json.dumps(self.data, default=str)
@@ -179,7 +179,7 @@ def create_start_event(run_id: str, event_counter: int) -> str:
             "type": "run_start",
             "run_id": run_id,
             "status": "streaming",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
     )
 
@@ -192,7 +192,7 @@ def create_chunk_event(run_id: str, event_counter: int, chunk_data: Dict[str, An
         data={
             "type": "execution_chunk",
             "chunk": chunk_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
     )
 
@@ -206,7 +206,7 @@ def create_complete_event(run_id: str, event_counter: int, final_output: Any) ->
             "type": "run_complete",
             "status": "completed",
             "final_output": final_output,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
     )
 
@@ -219,7 +219,7 @@ def create_cancelled_event(run_id: str, event_counter: int) -> str:
         data={
             "type": "run_cancelled",
             "status": "cancelled",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
     )
 
@@ -232,6 +232,6 @@ def create_interrupted_event(run_id: str, event_counter: int) -> str:
         data={
             "type": "run_interrupted",
             "status": "interrupted",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
     )

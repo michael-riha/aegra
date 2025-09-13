@@ -1,7 +1,7 @@
 """Thread endpoints for Agent Protocol"""
 import asyncio
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import List, Optional, Dict, Any
 import json
 import logging
@@ -96,7 +96,7 @@ async def create_thread(
     coerced_metadata = _coerce_dict(getattr(thread_orm, "metadata_json", metadata), metadata)
     coerced_created_at = getattr(thread_orm, "created_at", None)
     if not isinstance(coerced_created_at, datetime):
-        coerced_created_at = datetime.utcnow()
+        coerced_created_at = datetime.now(UTC)
 
     thread_dict: Dict[str, Any] = {
         "thread_id": coerced_thread_id,

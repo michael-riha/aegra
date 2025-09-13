@@ -1,7 +1,7 @@
 """Persistent event store for SSE replay functionality (Postgres-backed)."""
 import asyncio
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from sqlalchemy import text, bindparam
 from sqlalchemy.dialects.postgresql import JSONB
@@ -177,6 +177,6 @@ async def store_sse_event(run_id: str, event_id: str, event_type: str, data: Dic
     except Exception:
         # Fallback to stringifying as a last resort to avoid crashing the run
         safe_data = {"raw": str(data)}
-    event = SSEEvent(id=event_id, event=event_type, data=safe_data, timestamp=datetime.utcnow())
+    event = SSEEvent(id=event_id, event=event_type, data=safe_data, timestamp=datetime.now(UTC))
     await event_store.store_event(run_id, event)
     return event
