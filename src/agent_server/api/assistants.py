@@ -392,7 +392,8 @@ async def list_assistant_versions(
             user_id=user.identity,
             version=v.version,
             created_at=v.created_at,
-            updated_at=v.created_at
+            updated_at=v.created_at,
+            metadata_dict=v.metadata_dict
         ) for v in versions
     ]
 

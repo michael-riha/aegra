@@ -41,7 +41,6 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "uvicorn>=0.35.0",
     "langfuse>=3.3.4",
-    "langgraph-sdk==0.2.4",
 ]
 
 [project.urls]
@@ -88,6 +87,7 @@ markers = [
 dev = [
     "black>=25.1.0",
     "isort>=6.0.1",
+    "langgraph-sdk==0.2.4",
     "mypy>=1.17.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
