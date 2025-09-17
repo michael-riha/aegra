@@ -502,8 +502,6 @@ async def join_run(
             pass
 
     # Return final output from database
-    # Refresh session to ensure we see committed changes from background task
-    await session.commit()  # Commit any pending changes in this session
     run_orm = await session.scalar(select(RunORM).where(RunORM.run_id == run_id))
     if run_orm:
         await session.refresh(run_orm)  # Refresh to get latest data from DB

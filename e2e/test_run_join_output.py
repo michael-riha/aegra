@@ -55,7 +55,7 @@ async def test_run_join_returns_actual_output():
     run_details = await client.runs.get(thread_id, run_id)
     elog("Runs.get details", run_details)
     
-    assert run_details["status"] in ["completed", "success"], f"Expected completed status, got {run_details['status']}"
+    assert run_details["status"] == "completed", f"Expected completed status, got {run_details['status']}"
     assert run_details["output"] is not None, "Run output should not be None in database"
     assert run_details["output"] != {}, "Run output should not be empty dict in database"
     
