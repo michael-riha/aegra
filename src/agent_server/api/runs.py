@@ -21,6 +21,7 @@ from ..models import Run, RunCreate, RunList, RunStatus, User
 from ..core.auth_deps import get_current_user
 from ..core.sse import get_sse_headers, create_end_event
 from ..core.auth_ctx import with_auth_ctx
+from ..core.serializers import GeneralSerializer
 from ..services.langgraph_service import get_langgraph_service, create_run_config
 from ..services.streaming_service import streaming_service
 from ..utils.assistants import resolve_assistant_id
@@ -28,6 +29,7 @@ from ..utils.assistants import resolve_assistant_id
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+serializer = GeneralSerializer()
 # TODO: Replace all print statements and bare exceptions with structured logging across the codebase
 
 
@@ -385,6 +387,9 @@ async def get_run(
     if not run_orm:
         raise HTTPException(404, f"Run '{run_id}' not found")
 
+    # Refresh to ensure we have the latest data (in case background task updated it)
+    await session.refresh(run_orm)
+    
     print(f"[get_run] found run status={run_orm.status} user={user.identity} thread_id={thread_id} run_id={run_id}")
     # Convert to Pydantic
     return Run.model_validate({c.name: getattr(run_orm, c.name) for c in run_orm.__table__.columns})
@@ -452,6 +457,9 @@ async def update_run(
 
     # Return final run state
     run_orm = await session.scalar(select(RunORM).where(RunORM.run_id == run_id))
+    if run_orm:
+        # Refresh to ensure we have the latest data after our own update
+        await session.refresh(run_orm)
     return Run.model_validate({c.name: getattr(run_orm, c.name) for c in run_orm.__table__.columns})
 
 
@@ -476,7 +484,10 @@ async def join_run(
 
     # If already completed, return output immediately
     if run_orm.status in ["completed", "failed", "cancelled"]:
-        return getattr(run_orm, "output", None) or {}
+        # Refresh to ensure we have the latest data
+        await session.refresh(run_orm)
+        output = getattr(run_orm, "output", None) or {}
+        return output
 
     # Wait for background task to complete
     task = active_runs.get(run_id)
@@ -491,8 +502,13 @@ async def join_run(
             pass
 
     # Return final output from database
+    # Refresh session to ensure we see committed changes from background task
+    await session.commit()  # Commit any pending changes in this session
     run_orm = await session.scalar(select(RunORM).where(RunORM.run_id == run_id))
-    return getattr(run_orm, "output", None) or {}
+    if run_orm:
+        await session.refresh(run_orm)  # Refresh to get latest data from DB
+    output = getattr(run_orm, "output", None) or {}
+    return output
 
 
 @router.get("/threads/{thread_id}/runs/{run_id}/stream")
@@ -738,14 +754,14 @@ async def execute_run_async(
                     final_output = raw_event
         
         if has_interrupt:
-            await update_run_status(run_id, "interrupted", output={}, session=session)
+            await update_run_status(run_id, "interrupted", output=final_output or {}, session=session)
             if not session:
                 raise RuntimeError(f"No database session available to update thread {thread_id} status")
             await set_thread_status(session, thread_id, "interrupted")
 
         else:
-            # Update with results (store empty JSON to avoid serialization issues for now)
-            await update_run_status(run_id, "completed", output={}, session=session)
+            # Update with results
+            await update_run_status(run_id, "completed", output=final_output or {}, session=session)
             # Mark thread back to idle
             if not session:
                 raise RuntimeError(f"No database session available to update thread {thread_id} status")
@@ -791,7 +807,13 @@ async def update_run_status(
     try:
         values = {"status": status, "updated_at": datetime.now(UTC)}
         if output is not None:
-            values["output"] = output
+            # Serialize output to ensure JSON compatibility
+            try:
+                serialized_output = serializer.serialize(output)
+                values["output"] = serialized_output
+            except Exception as e:
+                logger.warning(f"Failed to serialize output for run {run_id}: {e}")
+                values["output"] = {"error": "Output serialization failed", "original_type": str(type(output))}
         if error is not None:
             values["error_message"] = error
         print(f"[update_run_status] updating DB run_id={run_id} status={status}")
