@@ -49,6 +49,8 @@ class Assistant(Base):
     config: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     context: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     user_id: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+    metadata_dict: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"), name="metadata")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=text("now()")
     )
@@ -60,8 +62,27 @@ class Assistant(Base):
     # Indexes for performance
     __table_args__ = (
         Index('idx_assistant_user', 'user_id'),
-        Index('idx_assistant_user_graph', 'user_id', 'graph_id', unique=True),
+        Index('idx_assistant_user_assistant', 'user_id', 'assistant_id', unique=True),
+        Index('idx_assistant_user_graph_config', 'user_id', 'graph_id', 'config', unique=True)
     )
+
+
+class AssistantVersion(Base):
+    __tablename__ = "assistant_versions"
+
+    assistant_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("assistant.assistant_id", ondelete="CASCADE"), primary_key=True
+    )
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[str] = mapped_column(Text, nullable=False)
+    config: Mapped[dict | None] = mapped_column(JSONB)
+    context: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=text("now()")
+    )
+    metadata_dict: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"), name="metadata")
+    name: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
 
 
 class Thread(Base):
@@ -91,7 +112,7 @@ class Run(Base):
     # TEXT PK with DB-side generation using uuid_generate_v4()::text
     run_id: Mapped[str] = mapped_column(Text, primary_key=True, server_default=text("uuid_generate_v4()::text"))
     thread_id: Mapped[str] = mapped_column(Text, ForeignKey("thread.thread_id", ondelete="CASCADE"), nullable=False)
-    assistant_id: Mapped[str | None] = mapped_column(Text, ForeignKey("assistant.assistant_id"))
+    assistant_id: Mapped[str | None] = mapped_column(Text, ForeignKey("assistant.assistant_id", ondelete="CASCADE"))
     status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
     input: Mapped[dict | None] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     # Some environments may not yet have a 'config' column; make it nullable without default to match existing DB.

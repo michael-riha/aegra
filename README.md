@@ -23,6 +23,11 @@ Replace LangGraph Platform with your own infrastructure. Built with FastAPI + Po
 
 **🎯 Perfect for:** Teams escaping vendor lock-in • Data sovereignty requirements • Custom deployments • Cost optimization
 
+## 🆕 What's New
+
+- **🤝 Human-in-the-Loop Support**: Interactive agent workflows with approval gates and user intervention points
+- **📊 [Langfuse Integration](docs/langfuse-usage.md)**: Complete observability and tracing for your agent runs with automatic metadata capture
+
 ---
 
 ## 🔥 Why Aegra vs LangGraph Platform?
@@ -247,7 +252,7 @@ OPENAI_API_KEY=sk-...
 - Config-driven agent graph management
 - Compatible with LangGraph Client SDK
 - Human-in-the-loop support
-- Langfuse integration for observability and tracing
+- [Langfuse integration](docs/langfuse-usage.md) for observability and tracing
 
 ### ✅ **Production Ready**
 
