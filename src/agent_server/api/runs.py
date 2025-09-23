@@ -217,6 +217,7 @@ async def create_run(
             request.interrupt_before,
             request.interrupt_after,
             request.multitask_strategy,
+            request.stream_subgraphs,
         )
     )
     print(f"[create_run] background task created task_id={id(task)} for run_id={run_id}")
@@ -341,6 +342,7 @@ async def create_and_stream_run(
             request.interrupt_before,
             request.interrupt_after,
             request.multitask_strategy,
+            request.stream_subgraphs,
         )
     )
     print(f"[create_and_stream_run] background task created task_id={id(task)} for run_id={run_id}")
@@ -638,9 +640,9 @@ def _should_skip_event(raw_event: Any) -> bool:
     """Check if an event should be skipped based on langsmith:nostream tag"""
     try:
         # Check if the event has metadata with tags containing 'langsmith:nostream'
-        if isinstance(raw_event, tuple) and len(raw_event) >= 3:
+        if isinstance(raw_event, tuple) and len(raw_event) >= 2:
             # For tuple events, check the third element (metadata tuple)
-            metadata_tuple = raw_event[2]
+            metadata_tuple = raw_event[len(raw_event) - 1]
             if isinstance(metadata_tuple, tuple) and len(metadata_tuple) >= 2:
                 # Get the second item in the metadata tuple
                 metadata = metadata_tuple[1]
@@ -669,6 +671,7 @@ async def execute_run_async(
     interrupt_before: Optional[Union[str, List[str]]] = None,
     interrupt_after: Optional[Union[str, List[str]]] = None,
     multitask_strategy: Optional[str] = None,
+    subgraphs: Optional[bool] = None,
 ):
     
     """Execute run asynchronously in background using streaming to capture all events"""    # Use provided session or get a new one
@@ -737,12 +740,15 @@ async def execute_run_async(
         only_interrupt_updates = not user_requested_updates
         
         # Use streaming service's broker system to distribute events
+        # Determine subgraphs parameter: if explicitly set, use that value; otherwise use False as default
+        subgraphs_param = False if subgraphs is None else subgraphs
+        
         async with with_auth_ctx(user, []):
             async for raw_event in graph.astream(
                 execution_input,
                 config=run_config,
                 context=context,
-                subgraphs=True,
+                subgraphs=subgraphs_param,
                 stream_mode=final_stream_modes,
             ):
                 # Skip events that contain langsmith:nostream tag

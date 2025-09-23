@@ -43,6 +43,12 @@ class RunCreate(BaseModel):
         description="Nodes to interrupt immediately after they get executed. Use '*' for all nodes.",
     )
     
+    # Subgraph configuration
+    stream_subgraphs: Optional[bool] = Field(
+        None,
+        description="Whether to include subgraph events in streaming. When True, includes events from all subgraphs. When False (default when None), excludes subgraph events. Defaults to False for backwards compatibility.",
+    )
+    
     @model_validator(mode='after')
     def validate_input_command_exclusivity(self):
         """Ensure input and command are mutually exclusive"""
