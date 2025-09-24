@@ -1,0 +1,56 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Remote Attach",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/graphs/",
+          "remoteRoot": "/app/graphs/"
+        },
+      ],
+      "redirectOutput": true,
+      "justMyCode": false
+    },
+    {
+      "name": "Test-Container: Python- Remote Attach",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5679
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/src",
+          "remoteRoot": "/workspace"
+        }
+      ],
+      "redirectOutput": true,
+      "justMyCode": false
+    },
+    {
+      "name": "HTTP Server: Python- Remote Attach",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5677
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/src",
+          "remoteRoot": "/workspace"
+        }
+      ],
+      "redirectOutput": true,
+      "justMyCode": false
+    }
+  ]
+}

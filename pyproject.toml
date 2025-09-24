@@ -8,7 +8,16 @@ version = "0.1.0"
 description = "Open source LangGraph Platform alternative - Self-hosted AI agent backend with FastAPI and PostgreSQL. Zero vendor lock-in, full control over your agent infrastructure."
 readme = "README.md"
 requires-python = ">=3.11"
-keywords = ["langgraph", "ai-agents", "self-hosted", "agent-backend", "fastapi", "postgresql", "langchain", "agent-protocol"]
+keywords = [
+    "langgraph",
+    "ai-agents",
+    "self-hosted",
+    "agent-backend",
+    "fastapi",
+    "postgresql",
+    "langchain",
+    "agent-protocol",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -19,18 +28,16 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-authors = [
-    {name = "Muhammad Ibrahim", email = "mibrahim37612@gmail.com"}
-]
-maintainers = [
-    {name = "Muhammad Ibrahim", email = "mibrahim37612@gmail.com"}
-]
+authors = [{ name = "Muhammad Ibrahim", email = "mibrahim37612@gmail.com" }]
+maintainers = [{ name = "Muhammad Ibrahim", email = "mibrahim37612@gmail.com" }]
 dependencies = [
     "alembic>=1.16.4",
     "asyncpg>=0.30.0",
     "fastapi>=0.116.1",
     "greenlet>=3.2.3",
     "langchain-openai>=0.3.28",
+    "langchain-aws>=0.0.11",                 #added by michael-riha
+    "boto3>=1.34.0",                         #added by michael-riha
     "langgraph>=0.6.0",
     "langchain>=0.3.0",
     "langgraph-checkpoint-postgres>=2.0.23",
@@ -41,6 +48,8 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "uvicorn>=0.35.0",
     "langfuse>=3.3.4",
+    "debugpy>=1.8.16",                       #added by michael-riha
+    "langchain-mcp-adapters==0.1.0",         #added by michael-riha
 ]
 
 [project.urls]
@@ -49,7 +58,6 @@ Repository = "https://github.com/ibbybuilds/aegra"
 Documentation = "https://github.com/ibbybuilds/aegra#readme"
 "Bug Tracker" = "https://github.com/ibbybuilds/aegra/issues"
 "Feature Requests" = "https://github.com/ibbybuilds/aegra/issues"
-
 
 
 [tool.hatch.build.targets.wheel]
@@ -79,9 +87,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 asyncio_mode = "auto"
-markers = [
-    "e2e: marks tests as end-to-end tests",
-]
+markers = ["e2e: marks tests as end-to-end tests"]
 
 [dependency-groups]
 dev = [

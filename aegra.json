@@ -1,6 +1,7 @@
 {
   "graphs": {
     "agent": "./graphs/react_agent/graph.py:graph",
+    "mcp_agent": "./graphs/mcp_agent/graph.py:graph",
     "agent_hitl": "./graphs/react_agent_hitl/graph.py:graph"
   }
 }

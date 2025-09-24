@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field, fields
-from typing import Annotated
-
-from react_agent import prompts
+from typing import Annotated, Any
+from langchain_core.tools import Tool
+from langchain_core.language_models.chat_models import BaseChatModel
+from langgraph.prebuilt import ToolNode
+from . import prompts
 
 
 @dataclass(kw_only=True)
@@ -22,7 +24,6 @@ class Context:
     )
 
     model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
-        # default="openai/gpt-4o-mini",
         default="bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
         metadata={
             "description": "The name of the language model to use for the agent's main interactions. "
@@ -36,6 +37,28 @@ class Context:
             "description": "The maximum number of search results to return for each search query."
         },
     )
+    # Using Any for flexibility
+    llm: BaseChatModel  = field(
+        default=None,
+        metadata={
+            "description": "The maximum number of search results to return for each search query."
+        },
+    )
+
+    toolNode: ToolNode = field(
+        default=None,
+        metadata={
+            "description": "The maximum number of search results to return for each search query."
+        },
+    )
+    
+    tools: list[Tool] = field(
+        default=None,
+        metadata={
+            "description": "The maximum number of search results to return for each search query."
+        },
+    )
+    
 
     def __post_init__(self) -> None:
         """Fetch env vars for attributes that were not passed as args."""
