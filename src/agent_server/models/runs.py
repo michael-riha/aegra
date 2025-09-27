@@ -45,7 +45,7 @@ class RunCreate(BaseModel):
     
     # Subgraph configuration
     stream_subgraphs: Optional[bool] = Field(
-        None,
+        False,
         description="Whether to include subgraph events in streaming. When True, includes events from all subgraphs. When False (default when None), excludes subgraph events. Defaults to False for backwards compatibility.",
     )
     

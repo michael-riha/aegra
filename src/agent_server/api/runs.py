@@ -671,7 +671,7 @@ async def execute_run_async(
     interrupt_before: Optional[Union[str, List[str]]] = None,
     interrupt_after: Optional[Union[str, List[str]]] = None,
     multitask_strategy: Optional[str] = None,
-    subgraphs: Optional[bool] = None,
+    subgraphs: Optional[bool] = False,
 ):
     
     """Execute run asynchronously in background using streaming to capture all events"""    # Use provided session or get a new one
@@ -739,16 +739,13 @@ async def execute_run_async(
             
         only_interrupt_updates = not user_requested_updates
         
-        # Use streaming service's broker system to distribute events
-        # Determine subgraphs parameter: if explicitly set, use that value; otherwise use False as default
-        subgraphs_param = False if subgraphs is None else subgraphs
         
         async with with_auth_ctx(user, []):
             async for raw_event in graph.astream(
                 execution_input,
                 config=run_config,
                 context=context,
-                subgraphs=subgraphs_param,
+                subgraphs=subgraphs,
                 stream_mode=final_stream_modes,
             ):
                 # Skip events that contain langsmith:nostream tag
