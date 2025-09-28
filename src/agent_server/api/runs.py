@@ -217,6 +217,7 @@ async def create_run(
             request.interrupt_before,
             request.interrupt_after,
             request.multitask_strategy,
+            request.stream_subgraphs,
         )
     )
     print(f"[create_run] background task created task_id={id(task)} for run_id={run_id}")
@@ -341,6 +342,7 @@ async def create_and_stream_run(
             request.interrupt_before,
             request.interrupt_after,
             request.multitask_strategy,
+            request.stream_subgraphs,
         )
     )
     print(f"[create_and_stream_run] background task created task_id={id(task)} for run_id={run_id}")
@@ -634,6 +636,25 @@ async def cancel_run_endpoint(
         raise HTTPException(404, f"Run '{run_id}' not found after cancellation")
     return Run.model_validate({c.name: getattr(run_orm, c.name) for c in run_orm.__table__.columns})
 
+def _should_skip_event(raw_event: Any) -> bool:
+    """Check if an event should be skipped based on langsmith:nostream tag"""
+    try:
+        # Check if the event has metadata with tags containing 'langsmith:nostream'
+        if isinstance(raw_event, tuple) and len(raw_event) >= 2:
+            # For tuple events, check the third element (metadata tuple)
+            metadata_tuple = raw_event[len(raw_event) - 1]
+            if isinstance(metadata_tuple, tuple) and len(metadata_tuple) >= 2:
+                # Get the second item in the metadata tuple
+                metadata = metadata_tuple[1]
+                if isinstance(metadata, dict) and "tags" in metadata:
+                    tags = metadata["tags"]
+                    if isinstance(tags, list) and "langsmith:nostream" in tags:
+                        return True
+        return False
+    except Exception:
+        # If we can't parse the event structure, don't skip it
+        return False
+
 
 async def execute_run_async(
     run_id: str,
@@ -650,6 +671,7 @@ async def execute_run_async(
     interrupt_before: Optional[Union[str, List[str]]] = None,
     interrupt_after: Optional[Union[str, List[str]]] = None,
     multitask_strategy: Optional[str] = None,
+    subgraphs: Optional[bool] = False,
 ):
     
     """Execute run asynchronously in background using streaming to capture all events"""    # Use provided session or get a new one
@@ -717,14 +739,19 @@ async def execute_run_async(
             
         only_interrupt_updates = not user_requested_updates
         
-        # Use streaming service's broker system to distribute events
+        
         async with with_auth_ctx(user, []):
             async for raw_event in graph.astream(
                 execution_input,
                 config=run_config,
                 context=context,
+                subgraphs=subgraphs,
                 stream_mode=final_stream_modes,
             ):
+                # Skip events that contain langsmith:nostream tag
+                if _should_skip_event(raw_event):
+                    continue
+                
                 event_counter += 1
                 event_id = f"{run_id}_event_{event_counter}"
                 
