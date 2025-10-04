@@ -1,6 +1,7 @@
 """Streaming service for orchestrating SSE streaming"""
 import asyncio
 import logging
+from datetime import datetime, UTC
 from typing import Dict, AsyncIterator, Optional, Any
 
 from ..models import Run, User
@@ -168,6 +169,11 @@ class StreamingService:
         """Stream run execution with unified producer-consumer pattern"""
         run_id = run.run_id
         try:
+            # Send metadata event first
+            if not last_event_id:
+                metadata_event = create_metadata_event(run_id, f"{int(datetime.now(UTC).timestamp() * 1000)}-0")
+                yield metadata_event
+            
             # Replay stored events first
             last_sent_sequence = 0
             if last_event_id:
