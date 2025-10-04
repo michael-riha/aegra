@@ -22,7 +22,7 @@ services:
       context: .
       dockerfile: deployments/docker/Dockerfile
     ports:
-      - "8000:8000"
+      - "2024:2024"
     environment:
       - DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/aegra
       - AUTH_TYPE=noop
@@ -42,7 +42,7 @@ services:
         echo 'Running database migrations...' &&
         alembic upgrade head &&
         echo 'Starting Aegra server...' &&
-        uvicorn src.agent_server.main:app --host 0.0.0.0 --port 8000 --reload
+        uvicorn src.agent_server.main:app --host 0.0.0.0 --port 2024 --reload
       "
 
   # Redis (optional - for advanced queuing in future phases)
