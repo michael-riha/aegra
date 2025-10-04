@@ -136,17 +136,6 @@ async def create_run(
     config = request.config
     context = request.context
 
-    if config.get("configurable") and context:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot specify both configurable and context. Prefer setting context alone. Context was introduced in LangGraph 0.6.0 and is the long term planned replacement for configurable.",
-        )
-
-    # Keep config and context up to date with one another
-    if config.get("configurable"):
-        context = config["configurable"]
-    elif context:
-        config["configurable"] = context
 
     assistant_stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == resolved_assistant_id,
@@ -261,17 +250,6 @@ async def create_and_stream_run(
     config = request.config
     context = request.context
 
-    if config.get("configurable") and context:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot specify both configurable and context. Prefer setting context alone. Context was introduced in LangGraph 0.6.0 and is the long term planned replacement for configurable.",
-        )
-
-    # Keep config and context up to date with one another
-    if config.get("configurable"):
-        context = config["configurable"]
-    elif context:
-        config["configurable"] = context
 
     assistant_stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == resolved_assistant_id,
