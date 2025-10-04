@@ -209,7 +209,10 @@ async def get_assistant(
     """Get assistant by ID"""
     stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == assistant_id,
-        AssistantORM.user_id == user.identity
+        or_(
+            AssistantORM.user_id == user.identity,
+            AssistantORM.user_id == "system"
+        )
     )
     assistant = await session.scalar(stmt)
     
@@ -489,7 +492,10 @@ async def get_assistant_schemas(
     
     stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == assistant_id,
-        AssistantORM.user_id == user.identity
+        or_(
+            AssistantORM.user_id == user.identity,
+            AssistantORM.user_id == "system"
+        )
     )
     assistant = await session.scalar(stmt)
     
@@ -522,7 +528,10 @@ async def get_assistant_graph(
     
     stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == assistant_id,
-        AssistantORM.user_id == user.identity
+        or_(
+            AssistantORM.user_id == user.identity,
+            AssistantORM.user_id == "system"
+        )
     )
     assistant = await session.scalar(stmt)
     
@@ -578,7 +587,10 @@ async def get_assistant_subgraphs(
     
     stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == assistant_id,
-        AssistantORM.user_id == user.identity
+        or_(
+            AssistantORM.user_id == user.identity,
+            AssistantORM.user_id == "system"
+        )
     )
     assistant = await session.scalar(stmt)
     
