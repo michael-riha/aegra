@@ -400,13 +400,92 @@ async def list_assistant_versions(
     return version_list
 
 
-@router.get("/assistants/{assistant_id}/schemas", response_model=AgentSchemas)
+def _state_jsonschema(graph) -> dict | None:
+    """Extract state schema from graph channels"""
+    from typing import Any
+    from langgraph._internal._pydantic import create_model
+    
+    fields: dict = {}
+    for k in graph.stream_channels_list:
+        v = graph.channels[k]
+        try:
+            create_model(k, __root__=(v.UpdateType, None)).model_json_schema()
+            fields[k] = (v.UpdateType, None)
+        except Exception:
+            fields[k] = (Any, None)
+    return create_model(graph.get_name("State"), **fields).model_json_schema()
+
+
+def _get_configurable_jsonschema(graph) -> dict:
+    """Get the JSON schema for the configurable part of the graph"""
+    from pydantic import TypeAdapter
+    
+    EXCLUDED_CONFIG_SCHEMA = {"__pregel_resuming", "__pregel_checkpoint_id"}
+    
+    config_schema = graph.config_schema()
+    model_fields = getattr(config_schema, "model_fields", None) or getattr(
+        config_schema, "__fields__", None
+    )
+    
+    if model_fields is not None and "configurable" in model_fields:
+        configurable = TypeAdapter(model_fields["configurable"].annotation)
+        json_schema = configurable.json_schema()
+        if json_schema:
+            for key in EXCLUDED_CONFIG_SCHEMA:
+                json_schema["properties"].pop(key, None)
+        if (
+            hasattr(graph, "config_type")
+            and graph.config_type is not None
+            and hasattr(graph.config_type, "__name__")
+        ):
+            json_schema["title"] = graph.config_type.__name__
+        return json_schema
+    return {}
+
+
+def _extract_graph_schemas(graph) -> dict:
+    """Extract schemas from a compiled LangGraph graph object"""
+    try:
+        input_schema = graph.get_input_jsonschema()
+    except Exception:
+        input_schema = None
+    
+    try:
+        output_schema = graph.get_output_jsonschema()
+    except Exception:
+        output_schema = None
+    
+    try:
+        state_schema = _state_jsonschema(graph)
+    except Exception:
+        state_schema = None
+    
+    try:
+        config_schema = _get_configurable_jsonschema(graph)
+    except Exception:
+        config_schema = None
+    
+    try:
+        context_schema = graph.get_context_jsonschema()
+    except Exception:
+        context_schema = None
+    
+    return {
+        "input_schema": input_schema,
+        "output_schema": output_schema,
+        "state_schema": state_schema,
+        "config_schema": config_schema,
+        "context_schema": context_schema,
+    }
+
+
+@router.get("/assistants/{assistant_id}/schemas")
 async def get_assistant_schemas(
     assistant_id: str, 
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
-    """Get input, output, state and config schemas for an assistant"""
+    """Get input, output, state, config and context schemas for an assistant"""
     
     stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == assistant_id,
@@ -417,43 +496,115 @@ async def get_assistant_schemas(
     if not assistant:
         raise HTTPException(404, f"Assistant '{assistant_id}' not found")
     
-    # Get LangGraph service
+    langgraph_service = get_langgraph_service()
+    
+    try:
+        graph = await langgraph_service.get_graph(assistant.graph_id)
+        schemas = _extract_graph_schemas(graph)
+        
+        return {
+            "graph_id": assistant.graph_id,
+            **schemas
+        }
+        
+    except Exception as e:
+        raise HTTPException(400, f"Failed to extract schemas: {str(e)}")
+
+
+@router.get("/assistants/{assistant_id}/graph")
+async def get_assistant_graph(
+    assistant_id: str,
+    xray: str | None = None,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    """Get the graph structure for visualization"""
+    
+    stmt = select(AssistantORM).where(
+        AssistantORM.assistant_id == assistant_id,
+        AssistantORM.user_id == user.identity
+    )
+    assistant = await session.scalar(stmt)
+    
+    if not assistant:
+        raise HTTPException(404, f"Assistant '{assistant_id}' not found")
+    
     langgraph_service = get_langgraph_service()
     
     try:
         graph = await langgraph_service.get_graph(assistant.graph_id)
         
-        # Extract schemas from LangGraph definition
-        schemas = AgentSchemas(
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "input": {"type": "string", "description": "User input message"}
-                },
-                "required": ["input"]
-            },
-            output_schema={
-                "type": "object",
-                "properties": {
-                    "output": {"type": "string", "description": "Agent response"}
-                }
-            },
-            state_schema={"type": "object", "additionalProperties": True},
-            config_schema={
-                "type": "object",
-                "properties": {
-                    "configurable": {
-                        "type": "object",
-                        "properties": {
-                            "thread_id": {"type": "string"},
-                            "user_id": {"type": "string"}
-                        }
-                    }
-                }
-            }
-        )
+        xray_value: bool | int = False
+        if xray:
+            if xray in ("true", "True"):
+                xray_value = True
+            elif xray in ("false", "False"):
+                xray_value = False
+            else:
+                try:
+                    xray_value = int(xray)
+                    if xray_value <= 0:
+                        raise HTTPException(422, detail="Invalid xray value")
+                except ValueError:
+                    raise HTTPException(422, detail="Invalid xray value")
         
-        return schemas
+        try:
+            drawable_graph = await graph.aget_graph(xray=xray_value)
+            json_graph = drawable_graph.to_json()
+            
+            for node in json_graph.get("nodes", []):
+                if (data := node.get("data")) and isinstance(data, dict):
+                    data.pop("id", None)
+            
+            return json_graph
+        except NotImplementedError:
+            raise HTTPException(422, detail="The graph does not support visualization")
         
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(400, f"Failed to extract schemas: {str(e)}")
+        raise HTTPException(400, f"Failed to get graph: {str(e)}")
+
+
+@router.get("/assistants/{assistant_id}/subgraphs")
+async def get_assistant_subgraphs(
+    assistant_id: str,
+    namespace: str | None = None,
+    recurse: str | None = None,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    """Get subgraphs of an assistant"""
+    
+    stmt = select(AssistantORM).where(
+        AssistantORM.assistant_id == assistant_id,
+        AssistantORM.user_id == user.identity
+    )
+    assistant = await session.scalar(stmt)
+    
+    if not assistant:
+        raise HTTPException(404, f"Assistant '{assistant_id}' not found")
+    
+    langgraph_service = get_langgraph_service()
+    
+    try:
+        graph = await langgraph_service.get_graph(assistant.graph_id)
+        
+        recurse_value = recurse in ("true", "True") if recurse else False
+        
+        try:
+            subgraphs = {
+                ns: _extract_graph_schemas(subgraph)
+                async for ns, subgraph in graph.aget_subgraphs(
+                    namespace=namespace,
+                    recurse=recurse_value
+                )
+            }
+            return subgraphs
+        except NotImplementedError:
+            raise HTTPException(422, detail="The graph does not support subgraphs")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Failed to get subgraphs: {str(e)}")
