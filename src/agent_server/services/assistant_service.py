@@ -510,7 +510,7 @@ class AssistantService:
     async def get_assistant_graph(
         self,
         assistant_id: str,
-        xray: str | None,
+        xray: bool | int,
         user_identity: str
     ) -> dict:
         """Get the graph structure for visualization"""
@@ -529,22 +529,12 @@ class AssistantService:
         try:
             graph = await self.langgraph_service.get_graph(assistant.graph_id)
             
-            xray_value: bool | int = False
-            if xray:
-                if xray in ("true", "True"):
-                    xray_value = True
-                elif xray in ("false", "False"):
-                    xray_value = False
-                else:
-                    try:
-                        xray_value = int(xray)
-                        if xray_value <= 0:
-                            raise HTTPException(422, detail="Invalid xray value")
-                    except ValueError:
-                        raise HTTPException(422, detail="Invalid xray value")
+            # Validate xray if it's an integer (not a boolean)
+            if isinstance(xray, int) and not isinstance(xray, bool) and xray <= 0:
+                raise HTTPException(422, detail="Invalid xray value")
             
             try:
-                drawable_graph = await graph.aget_graph(xray=xray_value)
+                drawable_graph = await graph.aget_graph(xray=xray)
                 json_graph = drawable_graph.to_json()
                 
                 for node in json_graph.get("nodes", []):
@@ -564,7 +554,7 @@ class AssistantService:
         self,
         assistant_id: str,
         namespace: str | None,
-        recurse: str | None,
+        recurse: bool,
         user_identity: str
     ) -> dict:
         """Get subgraphs of an assistant"""
@@ -583,14 +573,12 @@ class AssistantService:
         try:
             graph = await self.langgraph_service.get_graph(assistant.graph_id)
             
-            recurse_value = recurse in ("true", "True") if recurse else False
-            
             try:
                 subgraphs = {
                     ns: _extract_graph_schemas(subgraph)
                     async for ns, subgraph in graph.aget_subgraphs(
                         namespace=namespace,
-                        recurse=recurse_value
+                        recurse=recurse
                     )
                 }
                 return subgraphs

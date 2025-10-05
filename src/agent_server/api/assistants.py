@@ -128,19 +128,21 @@ async def get_assistant_schemas(
 @router.get("/assistants/{assistant_id}/graph")
 async def get_assistant_graph(
     assistant_id: str,
-    xray: str | None = None,
+    xray: bool | int | None = None,
     user: User = Depends(get_current_user),
     service: AssistantService = Depends(get_assistant_service)
 ):
     """Get the graph structure for visualization"""
-    return await service.get_assistant_graph(assistant_id, xray, user.identity)
+    # Default to False if not provided
+    xray_value = xray if xray is not None else False
+    return await service.get_assistant_graph(assistant_id, xray_value, user.identity)
 
 
 @router.get("/assistants/{assistant_id}/subgraphs")
 async def get_assistant_subgraphs(
     assistant_id: str,
+    recurse: bool = False,
     namespace: str | None = None,
-    recurse: str | None = None,
     user: User = Depends(get_current_user),
     service: AssistantService = Depends(get_assistant_service)
 ):
