@@ -58,11 +58,11 @@ def format_sse_message(
     return "\n".join(lines) + "\n"
 
 
-def create_metadata_event(run_id: str, event_id: Optional[str] = None) -> str:
-    """Create metadata event"""
+def create_metadata_event(run_id: str, event_id: Optional[str] = None, attempt: int = 1) -> str:
+    """Create metadata event for LangSmith Studio compatibility"""
     data = {
         "run_id": run_id,
-        "timestamp": datetime.now(UTC).isoformat()
+        "attempt": attempt
     }
     return format_sse_message("metadata", data, event_id)
 
@@ -78,7 +78,38 @@ def create_updates_event(updates_data: Dict[str, Any], event_id: Optional[str] =
 
 
 def create_debug_event(debug_data: Dict[str, Any], event_id: Optional[str] = None) -> str:
-    """Create debug event"""
+    """Create debug event with checkpoint fields for LangSmith Studio compatibility"""
+    
+    # Add checkpoint and parent_checkpoint fields if not present
+    if "payload" in debug_data and isinstance(debug_data["payload"], dict):
+        payload = debug_data["payload"]
+        
+        # Extract checkpoint from config.configurable
+        if "checkpoint" not in payload and "config" in payload:
+            config = payload.get("config", {})
+            if isinstance(config, dict) and "configurable" in config:
+                configurable = config["configurable"]
+                if isinstance(configurable, dict):
+                    payload["checkpoint"] = {
+                        "thread_id": configurable.get("thread_id"),
+                        "checkpoint_id": configurable.get("checkpoint_id"),
+                        "checkpoint_ns": configurable.get("checkpoint_ns", "")
+                    }
+        
+        # Extract parent_checkpoint from parent_config.configurable
+        if "parent_checkpoint" not in payload and "parent_config" in payload:
+            parent_config = payload.get("parent_config")
+            if isinstance(parent_config, dict) and "configurable" in parent_config:
+                configurable = parent_config["configurable"]
+                if isinstance(configurable, dict):
+                    payload["parent_checkpoint"] = {
+                        "thread_id": configurable.get("thread_id"),
+                        "checkpoint_id": configurable.get("checkpoint_id"),
+                        "checkpoint_ns": configurable.get("checkpoint_ns", "")
+                    }
+            elif parent_config is None:
+                payload["parent_checkpoint"] = None
+    
     return format_sse_message("debug", debug_data, event_id)
 
 

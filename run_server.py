@@ -61,15 +61,17 @@ def main():
     setup_environment()
     configure_logging(os.getenv("LOG_LEVEL", "INFO"))
 
+    port = int(os.getenv("PORT", "8000"))
+    
     print("🚀 Starting Aegra...")
-    print("📍 Server will be available at: http://localhost:8000")
-    print("📊 API docs will be available at: http://localhost:8000/docs")
+    print(f"📍 Server will be available at: http://localhost:{port}")
+    print(f"📊 API docs will be available at: http://localhost:{port}/docs")
     print("🧪 Test with: python test_sdk_integration.py")
 
     uvicorn.run(
         "src.agent_server.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=port,
         reload=True,
         log_level=os.getenv("UVICORN_LOG_LEVEL", "debug"),
     )

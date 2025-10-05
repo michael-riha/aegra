@@ -3,16 +3,12 @@ import asyncio
 import logging
 from typing import Dict, AsyncIterator, Optional, Any
 
-from ..models import Run, User
+from ..models import Run
 from ..core.sse import (
-    create_metadata_event, create_values_event, create_updates_event,
-    create_end_event, create_error_event, create_events_event,
-    create_messages_event, create_state_event, create_logs_event,
-    create_tasks_event, create_subgraphs_event, create_debug_event,
-    create_checkpoints_event, create_custom_event
+    create_metadata_event, create_error_event
 )
+from ..utils import generate_event_id, extract_event_sequence
 from .event_store import event_store, store_sse_event
-from .langgraph_service import get_langgraph_service, create_run_config
 from .broker import broker_manager
 from .event_converter import EventConverter
 
@@ -132,7 +128,7 @@ class StreamingService:
         """Signal that a run was cancelled"""
         counter = self.event_counters.get(run_id, 0) + 1
         self.event_counters[run_id] = counter
-        event_id = f"{run_id}_event_{counter}"
+        event_id = generate_event_id(run_id, counter)
         
         broker = broker_manager.get_or_create_broker(run_id)
         if broker:
@@ -144,7 +140,7 @@ class StreamingService:
         """Signal that a run encountered an error"""
         counter = self.event_counters.get(run_id, 0) + 1
         self.event_counters[run_id] = counter
-        event_id = f"{run_id}_event_{counter}"
+        event_id = generate_event_id(run_id, counter)
         
         broker = broker_manager.get_or_create_broker(run_id)
         if broker:
@@ -154,10 +150,7 @@ class StreamingService:
     
     def _extract_event_sequence(self, event_id: str) -> int:
         """Extract numeric sequence from event_id format: {run_id}_event_{sequence}"""
-        try:
-            return int(event_id.split("_event_")[-1])
-        except (ValueError, IndexError):
-            return 0
+        return extract_event_sequence(event_id)
     
     async def stream_run_execution(
         self, 
@@ -168,6 +161,12 @@ class StreamingService:
         """Stream run execution with unified producer-consumer pattern"""
         run_id = run.run_id
         try:
+            # Send metadata event first (sequence 0, not stored)
+            if not last_event_id:
+                event_id = generate_event_id(run_id, 0)
+                metadata_event = create_metadata_event(run_id, event_id)
+                yield metadata_event
+            
             # Replay stored events first
             last_sent_sequence = 0
             if last_event_id:

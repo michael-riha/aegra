@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.authentication import AuthenticationMiddleware
+import logging
 
 from .core.database import db_manager
 from .core.health import router as health_router
@@ -29,9 +30,12 @@ from .api.runs import router as runs_router
 from .api.store import router as store_router
 from .models.errors import AgentProtocolError, get_error_type
 from .core.auth_middleware import get_auth_backend, on_auth_error
+from .middleware import DoubleEncodedJSONMiddleware
 
 # Task management for run cancellation
 active_runs: Dict[str, asyncio.Task] = {}
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -80,6 +84,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add middleware to handle double-encoded JSON from frontend
+app.add_middleware(DoubleEncodedJSONMiddleware)
 
 # Add authentication middleware (must be added after CORS)
 app.add_middleware(
@@ -135,4 +142,6 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
