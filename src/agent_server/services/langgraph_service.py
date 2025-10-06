@@ -1,27 +1,30 @@
 """LangGraph integration service with official patterns"""
+
+import importlib.util
 import json
 import os
-import importlib.util
-from typing import Dict, Any, Optional, TypeVar
 from pathlib import Path
-from langgraph.graph import StateGraph
-from uuid import UUID, uuid5
-from ..constants import ASSISTANT_NAMESPACE_UUID
+from typing import Any, TypeVar
+from uuid import uuid5
 
+from langgraph.graph import StateGraph
+
+from ..constants import ASSISTANT_NAMESPACE_UUID
 from ..observability.langfuse_integration import get_tracing_callbacks
+
 State = TypeVar("State")
 
 
 class LangGraphService:
     """Service to work with LangGraph CLI configuration and graphs"""
-    
+
     def __init__(self, config_path: str = "aegra.json"):
         # Default path can be overridden via AEGRA_CONFIG or by placing aegra.json
         self.config_path = Path(config_path)
-        self.config: Optional[Dict[str, Any]] = None
-        self._graph_registry: Dict[str, Any] = {}
-        self._graph_cache: Dict[str, Any] = {}
-        
+        self.config: dict[str, Any] | None = None
+        self._graph_registry: dict[str, Any] = {}
+        self._graph_cache: dict[str, Any] = {}
+
     async def initialize(self):
         """Load configuration file and setup graph registry.
 
@@ -57,27 +60,27 @@ class LangGraphService:
 
         with open(self.config_path) as f:
             self.config = json.load(f)
-        
+
         # Load graph registry from config
         self._load_graph_registry()
 
         # Pre-register assistants for each graph using deterministic UUIDs so
         # clients can pass graph_id directly.
         await self._ensure_default_assistants()
-    
+
     def _load_graph_registry(self):
         """Load graph definitions from aegra.json"""
         graphs_config = self.config.get("graphs", {})
-        
+
         for graph_id, graph_path in graphs_config.items():
             # Parse path format: "./graphs/weather_agent.py:graph"
             if ":" not in graph_path:
                 raise ValueError(f"Invalid graph path format: {graph_path}")
-            
+
             file_path, export_name = graph_path.split(":", 1)
             self._graph_registry[graph_id] = {
                 "file_path": file_path,
-                "export_name": export_name
+                "export_name": export_name,
             }
 
     async def _ensure_default_assistants(self) -> None:
@@ -86,8 +89,11 @@ class LangGraphService:
         Uses uuid5 with a fixed namespace so that the same graph_id maps
         to the same assistant_id across restarts. Idempotent.
         """
-        from ..core.orm import Assistant as AssistantORM, get_session
         from sqlalchemy import select
+
+        from ..core.orm import Assistant as AssistantORM
+        from ..core.orm import get_session
+
         # Fixed namespace used to derive assistant IDs from graph IDs
         NS = ASSISTANT_NAMESPACE_UUID
         async for session in get_session():
@@ -95,7 +101,9 @@ class LangGraphService:
                 for graph_id in self._graph_registry.keys():
                     assistant_id = str(uuid5(NS, graph_id))
                     existing = await session.scalar(
-                        select(AssistantORM).where(AssistantORM.assistant_id == assistant_id)
+                        select(AssistantORM).where(
+                            AssistantORM.assistant_id == assistant_id
+                        )
                     )
                     if existing:
                         continue
@@ -112,31 +120,35 @@ class LangGraphService:
                 await session.commit()
             finally:
                 break
-    
-    async def get_graph(self, graph_id: str, force_reload: bool = False) -> StateGraph[Any]:
+
+    async def get_graph(
+        self, graph_id: str, force_reload: bool = False
+    ) -> StateGraph[Any]:
         """Get a compiled graph by ID with caching and LangGraph integration"""
         if graph_id not in self._graph_registry:
             raise ValueError(f"Graph not found: {graph_id}")
-        
+
         # Return cached graph if available and not forcing reload
         if not force_reload and graph_id in self._graph_cache:
             return self._graph_cache[graph_id]
-        
+
         graph_info = self._graph_registry[graph_id]
-        
+
         # Load graph from file
         base_graph = await self._load_graph_from_file(graph_id, graph_info)
-        
+
         # Always ensure graphs are compiled with our Postgres checkpointer for persistence
         from ..core.database import db_manager
-        
-        if hasattr(base_graph, 'compile'):
+
+        if hasattr(base_graph, "compile"):
             # The module exported an *uncompiled* StateGraph – compile it now with
             # a Postgres checkpointer for durable state.
             checkpointer_cm = await db_manager.get_checkpointer()
             store_cm = await db_manager.get_store()
             print(f"🔧 Compiling graph '{graph_id}' with Postgres persistence")
-            compiled_graph = base_graph.compile(checkpointer=checkpointer_cm, store=store_cm)
+            compiled_graph = base_graph.compile(
+                checkpointer=checkpointer_cm, store=store_cm
+            )
         else:
             # Graph was already compiled by the module.  Create a shallow copy
             # that injects our Postgres checkpointer *unless* the author already
@@ -144,63 +156,66 @@ class LangGraphService:
             checkpointer_cm = await db_manager.get_checkpointer()
             try:
                 store_cm = await db_manager.get_store()
-                compiled_graph = base_graph.copy(update={"checkpointer": checkpointer_cm, "store": store_cm})
+                compiled_graph = base_graph.copy(
+                    update={"checkpointer": checkpointer_cm, "store": store_cm}
+                )
             except Exception:
                 # Fallback: property may be immutably set; run as-is with warning
-                print(f"⚠️  Pre-compiled graph '{graph_id}' does not support checkpointer injection; running without persistence")
+                print(
+                    f"⚠️  Pre-compiled graph '{graph_id}' does not support checkpointer injection; running without persistence"
+                )
                 compiled_graph = base_graph
-        
+
         # Cache the compiled graph
         self._graph_cache[graph_id] = compiled_graph
-        
+
         return compiled_graph
-    
-    async def _load_graph_from_file(self, graph_id: str, graph_info: Dict[str, str]):
+
+    async def _load_graph_from_file(self, graph_id: str, graph_info: dict[str, str]):
         """Load graph from filesystem"""
         file_path = Path(graph_info["file_path"])
         if not file_path.exists():
             raise ValueError(f"Graph file not found: {file_path}")
-        
+
         # Dynamic import of graph module
         spec = importlib.util.spec_from_file_location(
-            f"graphs.{graph_id}",
-            str(file_path.resolve())
+            f"graphs.{graph_id}", str(file_path.resolve())
         )
         if spec is None or spec.loader is None:
             raise ValueError(f"Failed to load graph module: {file_path}")
-        
+
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        
+
         # Get the exported graph
         export_name = graph_info["export_name"]
         if not hasattr(module, export_name):
             raise ValueError(f"Graph export not found: {export_name} in {file_path}")
-        
+
         graph = getattr(module, export_name)
-        
+
         # The graph should already be compiled in the module
         # If it needs our checkpointer/store, we'll handle that during execution
         return graph
-    
-    def list_graphs(self) -> Dict[str, str]:
+
+    def list_graphs(self) -> dict[str, str]:
         """List all available graphs"""
         return {
-            graph_id: info["file_path"] 
+            graph_id: info["file_path"]
             for graph_id, info in self._graph_registry.items()
         }
-    
+
     def invalidate_cache(self, graph_id: str = None):
         """Invalidate graph cache for hot-reload"""
         if graph_id:
             self._graph_cache.pop(graph_id, None)
         else:
             self._graph_cache.clear()
-    
-    def get_config(self) -> Optional[Dict[str, Any]]:
+
+    def get_config(self) -> dict[str, Any] | None:
         """Get loaded configuration"""
         return self.config
-    
+
     def get_dependencies(self) -> list:
         """Get dependencies from config"""
         if self.config is None:
@@ -220,17 +235,19 @@ def get_langgraph_service() -> LangGraphService:
     return _langgraph_service
 
 
-def inject_user_context(user, base_config: Dict = None) -> Dict:
+def inject_user_context(user, base_config: dict = None) -> dict:
     """Inject user context into LangGraph configuration for user isolation"""
     config = (base_config or {}).copy()
     config["configurable"] = config.get("configurable", {})
-    
+
     # All user-related data injection (only if user exists)
     if user:
         # Basic user identity for multi-tenant scoping
         config["configurable"].setdefault("user_id", user.identity)
-        config["configurable"].setdefault("user_display_name", getattr(user, "display_name", user.identity))
-        
+        config["configurable"].setdefault(
+            "user_display_name", getattr(user, "display_name", user.identity)
+        )
+
         # Full auth payload for graph nodes
         if "langgraph_auth_user" not in config["configurable"]:
             try:
@@ -240,25 +257,27 @@ def inject_user_context(user, base_config: Dict = None) -> Dict:
                 config["configurable"]["langgraph_auth_user"] = {
                     "identity": user.identity
                 }
-    
+
     return config
 
 
-def create_thread_config(thread_id: str, user, additional_config: Dict = None) -> Dict:
+def create_thread_config(thread_id: str, user, additional_config: dict = None) -> dict:
     """Create LangGraph configuration for a specific thread with user context"""
-    base_config = {
-        "configurable": {
-            "thread_id": thread_id
-        }
-    }
-    
+    base_config = {"configurable": {"thread_id": thread_id}}
+
     if additional_config:
         base_config.update(additional_config)
-    
+
     return inject_user_context(user, base_config)
 
 
-def create_run_config(run_id: str, thread_id: str, user, additional_config: Dict = None, checkpoint: Dict | None = None) -> Dict:
+def create_run_config(
+    run_id: str,
+    thread_id: str,
+    user,
+    additional_config: dict = None,
+    checkpoint: dict | None = None,
+) -> dict:
     """Create LangGraph configuration for a specific run with full context.
 
     The function is *additive*: it never removes or renames anything the client
@@ -267,7 +286,7 @@ def create_run_config(run_id: str, thread_id: str, user, additional_config: Dict
     """
     from copy import deepcopy
 
-    cfg: Dict = deepcopy(additional_config) if additional_config else {}
+    cfg: dict = deepcopy(additional_config) if additional_config else {}
 
     # Ensure a configurable section exists
     cfg.setdefault("configurable", {})
@@ -283,10 +302,10 @@ def create_run_config(run_id: str, thread_id: str, user, additional_config: Dict
         if not isinstance(existing_callbacks, list):
             # If we want to be more robust, we can log a warning here
             existing_callbacks = []
-        
+
         # Combine existing callbacks with new tracing callbacks to be non-destructive
         cfg["callbacks"] = existing_callbacks + tracing_callbacks
-        
+
         # Add metadata for Langfuse
         cfg.setdefault("metadata", {})
         cfg["metadata"]["langfuse_session_id"] = thread_id
@@ -296,18 +315,20 @@ def create_run_config(run_id: str, thread_id: str, user, additional_config: Dict
                 "aegra_run",
                 f"run:{run_id}",
                 f"thread:{thread_id}",
-                f"user:{user.identity}"
+                f"user:{user.identity}",
             ]
         else:
             cfg["metadata"]["langfuse_tags"] = [
                 "aegra_run",
                 f"run:{run_id}",
-                f"thread:{thread_id}"
+                f"thread:{thread_id}",
             ]
 
     # Apply checkpoint parameters if provided
     if checkpoint and isinstance(checkpoint, dict):
-        cfg["configurable"].update({k: v for k, v in checkpoint.items() if v is not None})
+        cfg["configurable"].update(
+            {k: v for k, v in checkpoint.items() if v is not None}
+        )
 
     # Finally inject user context via existing helper
     return inject_user_context(user, cfg)

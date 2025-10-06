@@ -8,22 +8,25 @@ cleaned up.
 We mirror the structure used by the vendored reference implementation so that
 libraries expecting `Auth.types.BaseAuthContext` work unchanged.
 """
+
 from __future__ import annotations
 
 import contextvars
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, List, Optional
 
 from langgraph_sdk import Auth  # type: ignore
-from starlette.authentication import BaseUser, AuthCredentials
+from starlette.authentication import AuthCredentials, BaseUser
 
 # Internal context-var storing the current auth context (or None when absent)
-_AuthCtx: contextvars.ContextVar[Optional[Auth.types.BaseAuthContext]] = contextvars.ContextVar(  # type: ignore[attr-defined]
-    "LangGraphAuthContext", default=None
+_AuthCtx: contextvars.ContextVar[Auth.types.BaseAuthContext | None] = (
+    contextvars.ContextVar(  # type: ignore[attr-defined]
+        "LangGraphAuthContext", default=None
+    )
 )
 
 
-def get_auth_ctx() -> Optional[Auth.types.BaseAuthContext]:  # type: ignore[attr-defined]
+def get_auth_ctx() -> Auth.types.BaseAuthContext | None:  # type: ignore[attr-defined]
     """Return the current authentication context or ``None`` if not set."""
     return _AuthCtx.get()
 
@@ -31,7 +34,7 @@ def get_auth_ctx() -> Optional[Auth.types.BaseAuthContext]:  # type: ignore[attr
 @asynccontextmanager
 async def with_auth_ctx(
     user: BaseUser | None,
-    permissions: List[str] | AuthCredentials | None = None,
+    permissions: list[str] | AuthCredentials | None = None,
 ) -> AsyncIterator[None]:
     """Temporarily set the auth context for the duration of an async block.
 
@@ -44,7 +47,7 @@ async def with_auth_ctx(
         strings.  ``None`` means no permissions.
     """
     # Normalize the permissions list
-    scopes: List[str] = []
+    scopes: list[str] = []
     if isinstance(permissions, AuthCredentials):
         scopes = list(permissions.scopes)
     elif isinstance(permissions, list):

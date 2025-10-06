@@ -1,5 +1,6 @@
 import pytest
-from tests.e2e._utils import get_e2e_client, elog
+
+from tests.e2e._utils import elog, get_e2e_client
 
 
 @pytest.mark.e2e
@@ -27,8 +28,8 @@ async def test_chat_streaming_e2e():
 
     # Start streaming (messages mode for token streaming)
     # Use a longer, content-rich prompt to encourage tokenized streaming (matching standalone script semantics)
-    prompt = ("tell me a very short joke")
-    
+    prompt = "tell me a very short joke"
+
     stream = client.runs.stream(
         thread_id=thread_id,
         assistant_id=assistant["assistant_id"],
@@ -41,7 +42,13 @@ async def test_chat_streaming_e2e():
     token_count = 0
     async for chunk in stream:
         event_count += 1
-        elog("Runs.stream event", {"event": getattr(chunk, "event", None), "data": getattr(chunk, "data", None)})
+        elog(
+            "Runs.stream event",
+            {
+                "event": getattr(chunk, "event", None),
+                "data": getattr(chunk, "data", None),
+            },
+        )
 
         if getattr(chunk, "event", None) == "messages":
             data = getattr(chunk, "data", None)
@@ -53,7 +60,6 @@ async def test_chat_streaming_e2e():
                     content = message_chunk.get("content")
                 if content:
                     token_count += 1
-
 
     # Enforce streaming behavior: at least one event received
     assert event_count > 0, "Expected at least one event from streaming run"

@@ -1,26 +1,23 @@
 """Thread state conversion service"""
 
-from datetime import datetime
-from typing import Any, List, Optional
 import logging
+from datetime import datetime
+from typing import Any
 
-from ..models.threads import ThreadState, ThreadCheckpoint
 from ..core.serializers import LangGraphSerializer
-
+from ..models.threads import ThreadCheckpoint, ThreadState
 
 logger = logging.getLogger(__name__)
 
 
 class ThreadStateService:
     """Service for converting LangGraph snapshots to ThreadState objects"""
-    
+
     def __init__(self):
         self.serializer = LangGraphSerializer()
-    
+
     def convert_snapshot_to_thread_state(
-        self, 
-        snapshot: Any, 
-        thread_id: str
+        self, snapshot: Any, thread_id: str
     ) -> ThreadState:
         """Convert a LangGraph snapshot to ThreadState format"""
         try:
@@ -29,19 +26,27 @@ class ThreadStateService:
             next_nodes = getattr(snapshot, "next", []) or []
             metadata = getattr(snapshot, "metadata", {}) or {}
             created_at = self._extract_created_at(snapshot)
-            
+
             # Extract tasks and interrupts using serializer
             tasks = self.serializer.extract_tasks_from_snapshot(snapshot)
             interrupts = self.serializer.extract_interrupts_from_snapshot(snapshot)
-            
+
             # Create checkpoint objects
             current_checkpoint = self._create_checkpoint(snapshot.config, thread_id)
-            parent_checkpoint = self._create_checkpoint(snapshot.parent_config, thread_id) if snapshot.parent_config else None
-            
+            parent_checkpoint = (
+                self._create_checkpoint(snapshot.parent_config, thread_id)
+                if snapshot.parent_config
+                else None
+            )
+
             # Extract checkpoint IDs for backward compatibility
             checkpoint_id = self._extract_checkpoint_id(snapshot.config)
-            parent_checkpoint_id = self._extract_checkpoint_id(snapshot.parent_config) if snapshot.parent_config else None
-            
+            parent_checkpoint_id = (
+                self._extract_checkpoint_id(snapshot.parent_config)
+                if snapshot.parent_config
+                else None
+            )
+
             return ThreadState(
                 values=values,
                 next=next_nodes,
@@ -54,25 +59,25 @@ class ThreadStateService:
                 checkpoint_id=checkpoint_id,
                 parent_checkpoint_id=parent_checkpoint_id,
             )
-            
+
         except Exception as e:
             logger.error(
                 f"Failed to convert snapshot to thread state: {e} "
                 f"(thread_id={thread_id}, snapshot_type={type(snapshot).__name__})"
             )
             raise
-    
+
     def convert_snapshots_to_thread_states(
-        self, 
-        snapshots: List[Any], 
-        thread_id: str
-    ) -> List[ThreadState]:
+        self, snapshots: list[Any], thread_id: str
+    ) -> list[ThreadState]:
         """Convert multiple snapshots to ThreadState objects"""
         thread_states = []
-        
+
         for i, snapshot in enumerate(snapshots):
             try:
-                thread_state = self.convert_snapshot_to_thread_state(snapshot, thread_id)
+                thread_state = self.convert_snapshot_to_thread_state(
+                    snapshot, thread_id
+                )
                 thread_states.append(thread_state)
             except Exception as e:
                 logger.error(
@@ -81,45 +86,43 @@ class ThreadStateService:
                 )
                 # Continue with other snapshots rather than failing the entire batch
                 continue
-        
+
         return thread_states
-    
-    def _extract_created_at(self, snapshot: Any) -> Optional[datetime]:
+
+    def _extract_created_at(self, snapshot: Any) -> datetime | None:
         """Extract created_at timestamp from snapshot"""
         created_at = getattr(snapshot, "created_at", None)
         if isinstance(created_at, str):
             try:
-                return datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                return datetime.fromisoformat(created_at.replace("Z", "+00:00"))
             except ValueError:
                 logger.warning(f"Invalid created_at format: {created_at}")
                 return None
         elif isinstance(created_at, datetime):
             return created_at
         return None
-    
+
     def _create_checkpoint(self, config: Any, thread_id: str) -> ThreadCheckpoint:
         """Create ThreadCheckpoint from config"""
         if not config or not isinstance(config, dict):
             return ThreadCheckpoint(
-                checkpoint_id=None,
-                thread_id=thread_id,
-                checkpoint_ns=""
+                checkpoint_id=None, thread_id=thread_id, checkpoint_ns=""
             )
-        
+
         configurable = config.get("configurable", {})
         checkpoint_id = configurable.get("checkpoint_id")
         checkpoint_ns = configurable.get("checkpoint_ns", "")
-        
+
         return ThreadCheckpoint(
             checkpoint_id=checkpoint_id,
             thread_id=thread_id,
-            checkpoint_ns=checkpoint_ns
+            checkpoint_ns=checkpoint_ns,
         )
-    
-    def _extract_checkpoint_id(self, config: Any) -> Optional[str]:
+
+    def _extract_checkpoint_id(self, config: Any) -> str | None:
         """Extract checkpoint ID from config for backward compatibility"""
         if not config or not isinstance(config, dict):
             return None
-        
+
         configurable = config.get("configurable", {})
         return configurable.get("checkpoint_id")

@@ -1,17 +1,15 @@
 """Health check endpoints"""
-import asyncio
-import os
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
-
-from .database import DatabaseManager
 
 router = APIRouter()
 
 
 class HealthResponse(BaseModel):
     """Health check response model"""
+
     status: str
     database: str
     langgraph_checkpointer: str
@@ -20,6 +18,7 @@ class HealthResponse(BaseModel):
 
 class InfoResponse(BaseModel):
     """Info endpoint response model"""
+
     name: str
     version: str
     description: str
@@ -33,7 +32,7 @@ async def info():
         name="Aegra",
         version="0.1.0",
         description="Production-ready Agent Protocol server built on LangGraph",
-        status="running"
+        status="running",
     )
 
 
@@ -68,7 +67,9 @@ async def health_check():
         checkpointer = await db_manager.get_checkpointer()
         # probe - will raise if connection is bad; tuple may not exist which is fine
         try:
-            await checkpointer.aget_tuple({"configurable": {"thread_id": "health-check"}})
+            await checkpointer.aget_tuple(
+                {"configurable": {"thread_id": "health-check"}}
+            )
         except Exception:
             # Absence of data is not an error for health; connectivity worked
             pass
@@ -103,12 +104,17 @@ async def readiness_check():
 
     # Engine must exist and respond to a trivial query
     if not db_manager.engine:
-        raise HTTPException(status_code=503, detail="Service not ready - database engine not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Service not ready - database engine not initialized",
+        )
     try:
         async with db_manager.engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Service not ready - database error: {str(e)}")
+        raise HTTPException(
+            status_code=503, detail=f"Service not ready - database error: {str(e)}"
+        )
 
     # Check that LangGraph components can be obtained (lazy init) and respond
     try:
@@ -116,7 +122,9 @@ async def readiness_check():
         store = await db_manager.get_store()
         # lightweight probes
         try:
-            await checkpointer.aget_tuple({"configurable": {"thread_id": "ready-check"}})
+            await checkpointer.aget_tuple(
+                {"configurable": {"thread_id": "ready-check"}}
+            )
         except Exception:
             pass
         try:
@@ -124,7 +132,10 @@ async def readiness_check():
         except Exception:
             pass
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Service not ready - components unavailable: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Service not ready - components unavailable: {str(e)}",
+        )
 
     return {"status": "ready"}
 

@@ -1,16 +1,18 @@
 """LangGraph fixtures for tests"""
-from typing import Dict, Any, List, Optional
+
+from typing import Any
 from unittest.mock import patch
 
 
 class FakeSnapshot:
     """Mock LangGraph snapshot"""
+
     def __init__(
-        self, 
-        values: Dict[str, Any], 
-        cfg: Dict[str, Any], 
-        created_at=None, 
-        next_nodes: Optional[List[str]] = None
+        self,
+        values: dict[str, Any],
+        cfg: dict[str, Any],
+        created_at=None,
+        next_nodes: list[str] | None = None,
     ):
         self.values = values
         self.metadata = {}
@@ -21,10 +23,10 @@ class FakeSnapshot:
 
 
 def make_snapshot(
-    values: Dict[str, Any], 
-    cfg: Dict[str, Any], 
-    created_at=None, 
-    next_nodes: Optional[List[str]] = None
+    values: dict[str, Any],
+    cfg: dict[str, Any],
+    created_at=None,
+    next_nodes: list[str] | None = None,
 ) -> FakeSnapshot:
     """Create a fake snapshot for testing"""
     return FakeSnapshot(values, cfg, created_at, next_nodes)
@@ -32,7 +34,8 @@ def make_snapshot(
 
 class FakeAgent:
     """Mock LangGraph agent"""
-    def __init__(self, snapshots: List[FakeSnapshot]):
+
+    def __init__(self, snapshots: list[FakeSnapshot]):
         self._snapshots = snapshots
 
     async def aget_state_history(self, config, **_kwargs):
@@ -42,7 +45,8 @@ class FakeAgent:
 
 class FakeGraph:
     """Mock LangGraph graph"""
-    def __init__(self, events: List[Any]):
+
+    def __init__(self, events: list[Any]):
         self._events = events
 
     async def astream(self, _input, config=None, stream_mode=None):
@@ -52,7 +56,8 @@ class FakeGraph:
 
 class MockLangGraphService:
     """Mock LangGraph service"""
-    def __init__(self, agent: Optional[FakeAgent] = None, graph: Optional[FakeGraph] = None):
+
+    def __init__(self, agent: FakeAgent | None = None, graph: FakeGraph | None = None):
         self._agent = agent
         self._graph = graph
 
@@ -64,12 +69,18 @@ class MockLangGraphService:
         raise RuntimeError("No fake agent/graph configured")
 
 
-def patch_langgraph_service(agent: Optional[FakeAgent] = None, graph: Optional[FakeGraph] = None):
+def patch_langgraph_service(
+    agent: FakeAgent | None = None, graph: FakeGraph | None = None
+):
     """Patch get_langgraph_service to return a mock
-    
+
     Usage:
         with patch_langgraph_service(agent=fake_agent):
             ... tests ...
     """
     fake = MockLangGraphService(agent=agent, graph=graph)
-    return patch("agent_server.services.langgraph_service.get_langgraph_service", autospec=True, return_value=fake)
+    return patch(
+        "agent_server.services.langgraph_service.get_langgraph_service",
+        autospec=True,
+        return_value=fake,
+    )

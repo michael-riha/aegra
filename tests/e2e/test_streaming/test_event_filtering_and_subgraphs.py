@@ -1,6 +1,8 @@
-import pytest
-from tests.e2e._utils import get_e2e_client, elog
 from typing import Any
+
+import pytest
+
+from tests.e2e._utils import elog, get_e2e_client
 
 
 def _get_langgraph_node(chunk: Any) -> str:

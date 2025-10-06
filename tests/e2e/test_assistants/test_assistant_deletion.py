@@ -1,5 +1,6 @@
 import pytest
-from tests.e2e._utils import get_e2e_client, elog
+
+from tests.e2e._utils import elog, get_e2e_client
 
 
 @pytest.mark.e2e
@@ -46,8 +47,9 @@ async def test_assistant_deletion_with_active_runs():
 
     # 5. Verify run is also deleted/cancelled
     runs_list = await client.runs.list(thread_id)
-    assert all(r["assistant_id"] != assistant_id for r in runs_list["runs"]), \
-        "Run should have been deleted/cancelled when assistant was deleted"
+    assert all(
+        r["assistant_id"] != assistant_id for r in runs_list["runs"]
+    ), "Run should have been deleted/cancelled when assistant was deleted"
 
 
 @pytest.mark.e2e
@@ -158,11 +160,14 @@ async def test_assistant_deletion_multiple_runs():
         input={"messages": [{"role": "user", "content": "Run 2"}]},
     )
 
-    elog("Created multiple runs for assistant", {
-        "assistant_id": assistant_id,
-        "run1_id": run1["run_id"],
-        "run2_id": run2["run_id"],
-    })
+    elog(
+        "Created multiple runs for assistant",
+        {
+            "assistant_id": assistant_id,
+            "run1_id": run1["run_id"],
+            "run2_id": run2["run_id"],
+        },
+    )
 
     # 3. Delete assistant
     await client.assistants.delete(assistant_id)

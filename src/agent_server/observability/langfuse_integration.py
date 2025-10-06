@@ -1,10 +1,10 @@
-import os
 import logging
-from typing import List, Optional
+import os
 
 logger = logging.getLogger(__name__)
 
 _LANGFUSE_LOGGING_ENABLED = os.getenv("LANGFUSE_LOGGING", "false").lower() == "true"
+
 
 def get_tracing_callbacks() -> list:
     """
@@ -27,4 +27,4 @@ def get_tracing_callbacks() -> list:
         except Exception as e:
             logger.error(f"Failed to initialize Langfuse CallbackHandler: {e}")
 
-    return callbacks 
+    return callbacks

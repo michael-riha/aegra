@@ -8,12 +8,13 @@ This script:
 3. Can be used for testing our LangGraph integration
 """
 
+import logging
 import os
 import sys
-import logging
+from pathlib import Path
+
 import uvicorn
 from dotenv import load_dotenv
-from pathlib import Path
 
 # Add graphs directory to Python path so imports can be resolved
 current_dir = Path(__file__).parent
@@ -21,18 +22,22 @@ graphs_dir = current_dir / "graphs"
 if str(graphs_dir) not in sys.path:
     sys.path.insert(0, str(graphs_dir))
 
+
 def setup_environment():
     """Set up environment variables for testing"""
     # Set database URL for development
     if not os.getenv("DATABASE_URL"):
-        os.environ["DATABASE_URL"] = "postgresql+asyncpg://user:password@localhost:5432/aegra"
-    
+        os.environ["DATABASE_URL"] = (
+            "postgresql+asyncpg://user:password@localhost:5432/aegra"
+        )
+
     # Set auth type (can be overridden)
     if not os.getenv("AUTH_TYPE"):
         os.environ["AUTH_TYPE"] = "noop"
-    
+
     print(f"🔐 Auth Type: {os.getenv('AUTH_TYPE')}")
     print(f"🗄️  Database: {os.getenv('DATABASE_URL')}")
+
 
 def configure_logging(level: str = "DEBUG"):
     """Configure root and app loggers to emit to stdout with formatting."""
@@ -62,7 +67,7 @@ def main():
     configure_logging(os.getenv("LOG_LEVEL", "INFO"))
 
     port = int(os.getenv("PORT", "8000"))
-    
+
     print("🚀 Starting Aegra...")
     print(f"📍 Server will be available at: http://localhost:{port}")
     print(f"📊 API docs will be available at: http://localhost:{port}/docs")
@@ -75,6 +80,7 @@ def main():
         reload=True,
         log_level=os.getenv("UVICORN_LOG_LEVEL", "debug"),
     )
+
 
 if __name__ == "__main__":
     load_dotenv()

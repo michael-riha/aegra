@@ -1,4 +1,5 @@
 """Alembic environment configuration for Aegra database migrations."""
+
 import asyncio
 import os
 from logging.config import fileConfig
@@ -79,7 +80,7 @@ async def run_async_migrations() -> None:
     """
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = get_url()
-    
+
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",

@@ -1,15 +1,16 @@
 import json
-from typing import Any, Dict, List
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+
+from agent_server.core.orm import (
+    get_session as core_get_session,  # for dependency override
+)
 
 # Reuse shared test helpers
 from tests.fixtures.clients import create_test_app, make_client
 from tests.fixtures.database import DummySessionBase, override_get_session_dep
 from tests.fixtures.langgraph import FakeAgent, make_snapshot, patch_langgraph_service
-from agent_server.core.orm import get_session as core_get_session  # for dependency override
 
 
 def _thread_row():
@@ -23,10 +24,21 @@ def _thread_row():
             self.updated_at = None
 
             class _Col:
-                def __init__(self, name): self.name = name
+                def __init__(self, name):
+                    self.name = name
+
             class _T:
-                columns = [_Col("thread_id"), _Col("status"), _Col("metadata"), _Col("user_id"), _Col("created_at"), _Col("updated_at")]
+                columns = [
+                    _Col("thread_id"),
+                    _Col("status"),
+                    _Col("metadata"),
+                    _Col("user_id"),
+                    _Col("created_at"),
+                    _Col("updated_at"),
+                ]
+
             self.__table__ = _T()
+
     return DummyThread()
 
 
@@ -61,30 +73,38 @@ def mock_langgraph():
     Patch get_langgraph_service().get_graph(...) so that aget_state_history yields
     deterministic snapshots for both GET and POST tests.
     """
+
     def _agent_for_config(config):
         c1 = {
             "configurable": {
                 "thread_id": config.get("configurable", {}).get("thread_id"),
                 "checkpoint_id": "cp_1",
-                "checkpoint_ns": config.get("configurable", {}).get("checkpoint_ns", ""),
+                "checkpoint_ns": config.get("configurable", {}).get(
+                    "checkpoint_ns", ""
+                ),
             }
         }
         c2 = {
             "configurable": {
                 "thread_id": config.get("configurable", {}).get("thread_id"),
                 "checkpoint_id": "cp_2",
-                "checkpoint_ns": config.get("configurable", {}).get("checkpoint_ns", ""),
+                "checkpoint_ns": config.get("configurable", {}).get(
+                    "checkpoint_ns", ""
+                ),
             }
         }
-        return FakeAgent([
-            make_snapshot({"messages": ["hello"]}, c1, next_nodes=["step_b"]),
-            make_snapshot({"messages": ["world"]}, c2, next_nodes=[]),
-        ])
+        return FakeAgent(
+            [
+                make_snapshot({"messages": ["hello"]}, c1, next_nodes=["step_b"]),
+                make_snapshot({"messages": ["world"]}, c2, next_nodes=[]),
+            ]
+        )
 
     # Use a wrapper agent that builds snapshots using the provided config
     class DynamicFakeAgent(FakeAgent):
         def __init__(self):
             super().__init__(snapshots=[])
+
         async def aget_state_history(self, config, **kwargs):
             agent = _agent_for_config(config)
             async for s in agent.aget_state_history(config, **kwargs):
@@ -95,7 +115,10 @@ def mock_langgraph():
 
 
 def _ensure_thread(client: TestClient) -> str:
-    resp = client.post("/threads", json={"metadata": {"purpose": "test-history"}, "initial_state": None})
+    resp = client.post(
+        "/threads",
+        json={"metadata": {"purpose": "test-history"}, "initial_state": None},
+    )
     assert resp.status_code == 200, resp.text
     return resp.json()["thread_id"]
 

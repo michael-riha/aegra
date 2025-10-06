@@ -1,6 +1,7 @@
 import pytest
+
 # Match import style used by other e2e tests when run as top-level modules
-from tests.e2e._utils import get_e2e_client, elog
+from tests.e2e._utils import elog, get_e2e_client
 
 
 @pytest.mark.e2e
@@ -39,7 +40,10 @@ async def test_runs_crud_and_join_e2e():
         thread_id=thread_id,
         assistant_id=assistant_id,
         input={"messages": [{"role": "user", "content": "Say one short sentence."}]},
-        stream_mode=["messages", "values"],  # ensure both modes are available for later stream
+        stream_mode=[
+            "messages",
+            "values",
+        ],  # ensure both modes are available for later stream
     )
     elog("Runs.create", run)
     assert "run_id" in run
@@ -56,7 +60,14 @@ async def test_runs_crud_and_join_e2e():
     assert got["run_id"] == run_id
     assert got["thread_id"] == thread_id
     assert got["assistant_id"] == assistant_id
-    assert got["status"] in ("completed", "failed", "cancelled", "running", "streaming", "pending")
+    assert got["status"] in (
+        "completed",
+        "failed",
+        "cancelled",
+        "running",
+        "streaming",
+        "pending",
+    )
 
     # 6) List runs for the thread and ensure our run is present
     runs_list = await client.runs.list(thread_id)
@@ -121,7 +132,9 @@ async def test_runs_cancel_e2e():
 
     # Find the most recent run id
     runs_list = await client.runs.list(thread_id)
-    assert "runs" in runs_list and runs_list["runs"], "Expected at least one run for cancellation test"
+    assert (
+        "runs" in runs_list and runs_list["runs"]
+    ), "Expected at least one run for cancellation test"
     run_id = runs_list["runs"][0]["run_id"]
 
     # Cancel the run

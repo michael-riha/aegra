@@ -1,1 +1,1 @@
-"""Observability module for the agent server.""" 
+"""Observability module for the agent server."""

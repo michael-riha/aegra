@@ -1,6 +1,8 @@
 """Abstract base classes for the broker system"""
+
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator, Tuple
+from collections.abc import AsyncIterator
+from typing import Any
 
 
 class BaseRunBroker(ABC):
@@ -12,7 +14,7 @@ class BaseRunBroker(ABC):
         pass
 
     @abstractmethod
-    async def aiter(self) -> AsyncIterator[Tuple[str, Any]]:
+    async def aiter(self) -> AsyncIterator[tuple[str, Any]]:
         """Async iterator yielding (event_id, payload) pairs"""
         # Abstract async generator method; must be implemented by subclass
         raise NotImplementedError("aiter method must be implemented by subclass")
@@ -54,4 +56,4 @@ class BaseBrokerManager(ABC):
     @abstractmethod
     async def stop_cleanup_task(self) -> None:
         """Stop background cleanup task"""
-        pass 
+        pass
