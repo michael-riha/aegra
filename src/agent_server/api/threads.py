@@ -239,7 +239,7 @@ async def get_thread_history_post(
             agent = await langgraph_service.get_graph(graph_id)
         except Exception as e:
             logger.exception("Failed to load graph '%s' for history", graph_id)
-            raise HTTPException(500, f"Failed to load graph '{graph_id}': {str(e)}")
+            raise HTTPException(500, f"Failed to load graph '{graph_id}': {str(e)}") from e
 
         # Build config with user context and thread_id
         config: dict[str, Any] = create_thread_config(thread_id, user, {})
@@ -288,7 +288,7 @@ async def get_thread_history_post(
         msg = str(e).lower()
         if "not found" in msg or "no checkpoint" in msg:
             return []
-        raise HTTPException(500, f"Error retrieving thread history: {str(e)}")
+        raise HTTPException(500, f"Error retrieving thread history: {str(e)}") from e
 
 
 @router.get("/threads/{thread_id}/history", response_model=list[ThreadState])
@@ -315,7 +315,7 @@ async def get_thread_history_get(
             if not isinstance(parsed_metadata, dict):
                 raise ValueError("metadata must be a JSON object")
         except Exception as e:
-            raise HTTPException(422, f"Invalid metadata query param: {e}")
+            raise HTTPException(422, f"Invalid metadata query param: {e}") from e
     req = ThreadHistoryRequest(
         limit=limit,
         before=before,

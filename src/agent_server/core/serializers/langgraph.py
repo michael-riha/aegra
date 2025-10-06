@@ -54,7 +54,7 @@ class LangGraphSerializer(Serializer):
                 raise
             raise SerializationError(
                 f"Failed to serialize task: {str(e)}", task.__class__.__name__, e
-            )
+            ) from e
 
     def serialize_interrupt(self, interrupt: Any) -> dict[str, Any]:
         """Serialize a LangGraph interrupt"""
@@ -65,7 +65,7 @@ class LangGraphSerializer(Serializer):
                 f"Failed to serialize interrupt: {str(e)}",
                 interrupt.__class__.__name__,
                 e,
-            )
+            ) from e
 
     def extract_tasks_from_snapshot(self, snapshot: Any) -> list[dict[str, Any]]:
         """Extract and serialize tasks from a snapshot"""

@@ -880,7 +880,7 @@ async def execute_run_async(
         if not session:
             raise RuntimeError(
                 f"No database session available to update thread {thread_id} status"
-            )
+            ) from None
         await set_thread_status(session, thread_id, "idle")
         # Signal cancellation to broker
         await streaming_service.signal_run_cancelled(run_id)
@@ -893,7 +893,7 @@ async def execute_run_async(
         if not session:
             raise RuntimeError(
                 f"No database session available to update thread {thread_id} status"
-            )
+            ) from None
         await set_thread_status(session, thread_id, "idle")
         # Signal error to broker
         await streaming_service.signal_run_error(run_id, str(e))

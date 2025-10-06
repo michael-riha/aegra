@@ -148,7 +148,7 @@ class AssistantService:
         try:
             await self.langgraph_service.get_graph(graph_id)
         except Exception as e:
-            raise HTTPException(400, f"Failed to load graph: {str(e)}")
+            raise HTTPException(400, f"Failed to load graph: {str(e)}") from e
 
         config = request.config
         context = request.context
@@ -501,7 +501,7 @@ class AssistantService:
             return {"graph_id": assistant.graph_id, **schemas}
 
         except Exception as e:
-            raise HTTPException(400, f"Failed to extract schemas: {str(e)}")
+            raise HTTPException(400, f"Failed to extract schemas: {str(e)}") from e
 
     async def get_assistant_graph(
         self, assistant_id: str, xray: bool | int, user_identity: str
@@ -534,15 +534,15 @@ class AssistantService:
                         data.pop("id", None)
 
                 return json_graph
-            except NotImplementedError:
+            except NotImplementedError as e:
                 raise HTTPException(
                     422, detail="The graph does not support visualization"
-                )
+                ) from e
 
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(400, f"Failed to get graph: {str(e)}")
+            raise HTTPException(400, f"Failed to get graph: {str(e)}") from e
 
     async def get_assistant_subgraphs(
         self,
@@ -574,13 +574,13 @@ class AssistantService:
                     )
                 }
                 return subgraphs
-            except NotImplementedError:
-                raise HTTPException(422, detail="The graph does not support subgraphs")
+            except NotImplementedError as e:
+                raise HTTPException(422, detail="The graph does not support subgraphs") from e
 
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(400, f"Failed to get subgraphs: {str(e)}")
+            raise HTTPException(400, f"Failed to get subgraphs: {str(e)}") from e
 
 
 def get_assistant_service(

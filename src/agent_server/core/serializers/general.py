@@ -15,7 +15,7 @@ class GeneralSerializer(Serializer):
         except Exception as e:
             raise SerializationError(
                 f"Failed to serialize object: {str(e)}", obj.__class__.__name__, e
-            )
+            ) from e
 
     def _serialize_object(self, obj: Any) -> Any:
         """Core serialization logic based on LangGraph SDK's _orjson_default"""

@@ -129,7 +129,7 @@ elif AUTH_TYPE == "custom":
             logger.error(f"Authorization error: {e}", exc_info=True)
             raise Auth.exceptions.HTTPException(
                 status_code=500, detail="Authorization system error"
-            )
+            ) from e
 
 else:
     raise ValueError(

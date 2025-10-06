@@ -159,11 +159,11 @@ class LangGraphAuthBackend(AuthenticationBackend):
 
         except Auth.exceptions.HTTPException as e:
             logger.warning(f"Authentication failed: {e.detail}")
-            raise AuthenticationError(e.detail)
+            raise AuthenticationError(e.detail) from e
 
         except Exception as e:
             logger.error(f"Unexpected error during authentication: {e}", exc_info=True)
-            raise AuthenticationError("Authentication system error")
+            raise AuthenticationError("Authentication system error") from e
 
 
 def get_auth_backend() -> AuthenticationBackend:

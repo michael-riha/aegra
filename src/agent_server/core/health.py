@@ -116,7 +116,7 @@ async def readiness_check():
     except Exception as e:
         raise HTTPException(
             status_code=503, detail=f"Service not ready - database error: {str(e)}"
-        )
+        ) from e
 
     # Check that LangGraph components can be obtained (lazy init) and respond
     try:
@@ -133,7 +133,7 @@ async def readiness_check():
         raise HTTPException(
             status_code=503,
             detail=f"Service not ready - components unavailable: {str(e)}",
-        )
+        ) from e
 
     return {"status": "ready"}
 
