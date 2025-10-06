@@ -1,5 +1,5 @@
 import pytest
-from e2e._utils import get_e2e_client, elog
+from tests.e2e._utils import get_e2e_client, elog
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
@@ -30,6 +30,7 @@ async def test_assistant_count():
                 graph_id="agent",
                 context=spec["context"],
                 metadata=spec["metadata"],
+        if_exists="do_nothing"
             )
             created_assistants.append(assistant)
 
@@ -81,6 +82,7 @@ async def test_assistant_search_metadata():
                 graph_id="agent",
                 context=spec["context"],
                 metadata=spec["metadata"],
+        if_exists="do_nothing"
             )
             created_assistants.append(assistant)
 

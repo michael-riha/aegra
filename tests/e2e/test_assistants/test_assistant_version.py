@@ -1,5 +1,5 @@
 import pytest
-from e2e._utils import get_e2e_client, elog
+from tests.e2e._utils import get_e2e_client, elog
 
 
 @pytest.mark.e2e
@@ -18,6 +18,7 @@ async def test_assistant_versions():
         context={
             "max_search_results": 3
         },
+        if_exists="do_nothing"
     )
 
     # 2. Patch assistant to create a new version
@@ -76,7 +77,8 @@ async def test_change_assistant_version():
         graph_id="agent",
         context={
             "max_search_results": 3
-        }
+        },
+        if_exists="do_nothing"
     )
 
     # 2. Patch assistant to create a new version

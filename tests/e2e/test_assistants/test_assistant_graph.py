@@ -1,5 +1,5 @@
 import pytest
-from e2e._utils import get_e2e_client, elog
+from tests.e2e._utils import get_e2e_client, elog
 
 
 @pytest.mark.e2e
@@ -15,6 +15,7 @@ async def test_get_assistant_graph():
         name="Test Graph Assistant",
         description="Assistant for testing graph endpoint",
         graph_id="agent",
+        if_exists="do_nothing"
     )
 
     try:
@@ -57,6 +58,7 @@ async def test_get_assistant_graph_with_xray_boolean():
         name="Test Graph XRay Assistant",
         description="Assistant for testing graph endpoint with xray",
         graph_id="agent",
+        if_exists="do_nothing"
     )
 
     try:
@@ -99,6 +101,7 @@ async def test_get_assistant_graph_with_xray_integer():
         name="Test Graph XRay Depth Assistant",
         description="Assistant for testing graph endpoint with xray depth",
         graph_id="agent",
+        if_exists="do_nothing"
     )
 
     try:
@@ -163,6 +166,7 @@ async def test_get_assistant_subgraphs():
         name="Test Subgraphs Assistant",
         description="Assistant for testing subgraphs endpoint",
         graph_id="subgraph_agent",
+        if_exists="do_nothing",
     )
 
     try:
@@ -203,6 +207,7 @@ async def test_get_assistant_subgraphs_with_recurse():
         name="Test Subgraphs Recurse Assistant",
         description="Assistant for testing subgraphs endpoint with recurse",
         graph_id="subgraph_agent",
+        if_exists="do_nothing",
     )
 
     try:

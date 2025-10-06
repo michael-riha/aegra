@@ -1,5 +1,5 @@
 import pytest
-from e2e._utils import get_e2e_client, elog
+from tests.e2e._utils import get_e2e_client, elog
 from typing import Any
 
 
