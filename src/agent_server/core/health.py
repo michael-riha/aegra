@@ -68,13 +68,10 @@ async def health_check():
     try:
         checkpointer = await db_manager.get_checkpointer()
         # probe - will raise if connection is bad; tuple may not exist which is fine
-        try:
+        with contextlib.suppress(Exception):
             await checkpointer.aget_tuple(
                 {"configurable": {"thread_id": "health-check"}}
             )
-        except Exception:
-            # Absence of data is not an error for health; connectivity worked
-            pass
         health_status["langgraph_checkpointer"] = "connected"
     except Exception as e:
         health_status["langgraph_checkpointer"] = f"error: {str(e)}"
@@ -83,11 +80,8 @@ async def health_check():
     # LangGraph store (lazy-init)
     try:
         store = await db_manager.get_store()
-        try:
+        with contextlib.suppress(Exception):
             await store.aget(("health",), "check")
-        except Exception:
-            # Key absence is OK; connectivity confirmed
-            pass
         health_status["langgraph_store"] = "connected"
     except Exception as e:
         health_status["langgraph_store"] = f"error: {str(e)}"

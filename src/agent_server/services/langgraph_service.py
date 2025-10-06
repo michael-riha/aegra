@@ -58,7 +58,7 @@ class LangGraphService:
         # Persist selected path for later reference
         self.config_path = resolved_path
 
-        with open(self.config_path) as f:
+        with self.config_path.open() as f:
             self.config = json.load(f)
 
         # Load graph registry from config
@@ -96,30 +96,31 @@ class LangGraphService:
 
         # Fixed namespace used to derive assistant IDs from graph IDs
         NS = ASSISTANT_NAMESPACE_UUID
-        async for session in get_session():
-            try:
-                for graph_id in self._graph_registry:
-                    assistant_id = str(uuid5(NS, graph_id))
-                    existing = await session.scalar(
-                        select(AssistantORM).where(
-                            AssistantORM.assistant_id == assistant_id
-                        )
+        session_gen = get_session()
+        session = await anext(session_gen)
+        try:
+            for graph_id in self._graph_registry:
+                assistant_id = str(uuid5(NS, graph_id))
+                existing = await session.scalar(
+                    select(AssistantORM).where(
+                        AssistantORM.assistant_id == assistant_id
                     )
-                    if existing:
-                        continue
-                    session.add(
-                        AssistantORM(
-                            assistant_id=assistant_id,
-                            name=graph_id,
-                            description=f"Default assistant for graph '{graph_id}'",
-                            graph_id=graph_id,
-                            config={},
-                            user_id="system",
-                        )
+                )
+                if existing:
+                    continue
+                session.add(
+                    AssistantORM(
+                        assistant_id=assistant_id,
+                        name=graph_id,
+                        description=f"Default assistant for graph '{graph_id}'",
+                        graph_id=graph_id,
+                        config={},
+                        user_id="system",
                     )
-                await session.commit()
-            finally:
-                break
+                )
+            await session.commit()
+        finally:
+            await session.close()
 
     async def get_graph(
         self, graph_id: str, force_reload: bool = False

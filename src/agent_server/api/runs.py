@@ -1,9 +1,10 @@
 """Run endpoints for Agent Protocol"""
 
 import asyncio
+import contextlib
 import logging
 from datetime import UTC, datetime
-from typing import Any, Union
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -536,12 +537,13 @@ async def join_run(
     return output
 
 
+# TODO: check if this method is actually required because the implementation doesn't seem correct.
 @router.get("/threads/{thread_id}/runs/{run_id}/stream")
 async def stream_run(
     thread_id: str,
     run_id: str,
     last_event_id: str | None = Header(None, alias="Last-Event-ID"),
-    stream_mode: str | None = Query(None),
+    _stream_mode: str | None = Query(None),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
@@ -666,12 +668,8 @@ async def cancel_run_endpoint(
     if wait:
         task = active_runs.get(run_id)
         if task:
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                pass
 
     # Reload and return updated Run (do NOT delete here; deletion is a separate endpoint)
     run_orm = await session.scalar(
@@ -720,9 +718,9 @@ async def execute_run_async(
     session: AsyncSession | None = None,
     checkpoint: dict | None = None,
     command: dict[str, Any] | None = None,
-    interrupt_before: Union[str, list[str]] | None = None,
-    interrupt_after: Union[str, list[str]] | None = None,
-    multitask_strategy: str | None = None,
+    interrupt_before: str | list[str] | None = None,
+    interrupt_after: str | list[str] | None = None,
+    _multitask_strategy: str | None = None,
     subgraphs: bool | None = False,
 ):
     """Execute run asynchronously in background using streaming to capture all events"""  # Use provided session or get a new one
@@ -989,12 +987,8 @@ async def delete_run(
         # Best-effort: wait for bg task to settle
         task = active_runs.get(run_id)
         if task:
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                pass
 
     # Delete the record
     await session.execute(

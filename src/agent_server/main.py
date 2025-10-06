@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """FastAPI lifespan context manager for startup/shutdown"""
     # Startup: Initialize database and LangGraph components
     await db_manager.initialize()
@@ -109,7 +109,7 @@ app.include_router(store_router, prefix="", tags=["Store"])
 
 # Error handling
 @app.exception_handler(HTTPException)
-async def agent_protocol_exception_handler(request: Request, exc: HTTPException):
+async def agent_protocol_exception_handler(_request: Request, exc: HTTPException):
     """Convert HTTP exceptions to Agent Protocol error format"""
     return JSONResponse(
         status_code=exc.status_code,
@@ -122,7 +122,7 @@ async def agent_protocol_exception_handler(request: Request, exc: HTTPException)
 
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
+async def general_exception_handler(_request: Request, exc: Exception):
     """Handle unexpected exceptions"""
     return JSONResponse(
         status_code=500,
@@ -146,4 +146,4 @@ if __name__ == "__main__":
     import uvicorn
 
     port = int(os.getenv("PORT", "8000"))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)  # nosec B104 - binding to all interfaces is intentional

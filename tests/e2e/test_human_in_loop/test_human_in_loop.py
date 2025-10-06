@@ -697,11 +697,15 @@ async def test_human_in_loop_streaming_interrupt_resume_e2e():
         data = getattr(chunk, "data", None)
 
         # Look for interrupt in values events
-        if event_type == "values" and isinstance(data, dict):
-            if "__interrupt__" in data and len(data.get("__interrupt__", [])) > 0:
-                interrupt_detected = True
-                elog("✅ Interrupt detected in stream!", {"event_count": event_count})
-                break
+        if (
+            event_type == "values"
+            and isinstance(data, dict)
+            and "__interrupt__" in data
+            and len(data.get("__interrupt__", [])) > 0
+        ):
+            interrupt_detected = True
+            elog("✅ Interrupt detected in stream!", {"event_count": event_count})
+            break
 
         if event_count > 50:  # Safety limit
             break

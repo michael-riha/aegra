@@ -575,7 +575,9 @@ class AssistantService:
                 }
                 return subgraphs
             except NotImplementedError as e:
-                raise HTTPException(422, detail="The graph does not support subgraphs") from e
+                raise HTTPException(
+                    422, detail="The graph does not support subgraphs"
+                ) from e
 
         except HTTPException:
             raise

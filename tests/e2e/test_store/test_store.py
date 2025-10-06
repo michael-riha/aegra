@@ -38,5 +38,5 @@ async def test_store_endpoints_via_sdk():
     elog("store.delete_item", {"namespace": ns, "key": key})
 
     # Ensure deleted
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 - SDK doesn't expose specific exception type
         await client.store.get_item(ns, key=key)

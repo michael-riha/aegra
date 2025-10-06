@@ -55,7 +55,7 @@ async def test_assistant_versions():
     await client.assistants.delete(assistant_id=assistant["assistant_id"])
 
     # Check if assistant is deleted
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 - SDK doesn't expose specific exception type
         assistant = await client.assistants.get(assistant_id=assistant["assistant_id"])
 
 
@@ -105,5 +105,5 @@ async def test_change_assistant_version():
     # Clean up
     await client.assistants.delete(assistant_id=assistant["assistant_id"])
     # Check if assistant is deleted
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 - SDK doesn't expose specific exception type
         assistant = await client.assistants.get(assistant_id=assistant["assistant_id"])

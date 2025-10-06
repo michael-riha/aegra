@@ -9,6 +9,7 @@ import importlib.util
 import logging
 import os
 import sys
+from pathlib import Path
 
 from langgraph_sdk import Auth
 from starlette.authentication import (
@@ -74,12 +75,12 @@ class LangGraphAuthBackend(AuthenticationBackend):
         """Load the auth instance from auth.py"""
         try:
             # Import the auth instance from the project root auth.py
-            auth_path = os.path.join(os.getcwd(), "auth.py")
-            if not os.path.exists(auth_path):
+            auth_path = Path.cwd() / "auth.py"
+            if not auth_path.exists():
                 logger.warning(f"Auth file not found at {auth_path}")
                 return None
 
-            spec = importlib.util.spec_from_file_location("auth_module", auth_path)
+            spec = importlib.util.spec_from_file_location("auth_module", str(auth_path))
             if spec is None or spec.loader is None:
                 logger.error(f"Could not load auth module from {auth_path}")
                 return None

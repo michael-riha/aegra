@@ -65,14 +65,19 @@ async def test_background_run_and_join_e2e():
         )
 
         # Print/accumulate message content as it streams
-        if chunk.event == "messages" and hasattr(chunk, "data") and chunk.data:
-            if isinstance(chunk.data, list) and len(chunk.data) >= 1:
-                message_chunk = chunk.data[0]
-                content = getattr(message_chunk, "content", None)
-                if content is None and isinstance(message_chunk, dict):
-                    content = message_chunk.get("content")
-                if content:
-                    content_before_drop += content
+        if (
+            chunk.event == "messages"
+            and hasattr(chunk, "data")
+            and chunk.data
+            and isinstance(chunk.data, list)
+            and len(chunk.data) >= 1
+        ):
+            message_chunk = chunk.data[0]
+            content = getattr(message_chunk, "content", None)
+            if content is None and isinstance(message_chunk, dict):
+                content = message_chunk.get("content")
+            if content:
+                content_before_drop += content
 
         # Create a simple mock event id for demonstration and simulate drop
         current_event_id = f"mock_event_{event_count}"
@@ -115,14 +120,18 @@ async def test_background_run_and_join_e2e():
 
         if chunk.event == "messages":
             rejoin_message_count += 1
-            if hasattr(chunk, "data") and chunk.data:
-                if isinstance(chunk.data, list) and len(chunk.data) >= 1:
-                    message_chunk = chunk.data[0]
-                    content = getattr(message_chunk, "content", None)
-                    if content is None and isinstance(message_chunk, dict):
-                        content = message_chunk.get("content")
-                    if content:
-                        content_after_rejoin += content
+            if (
+                hasattr(chunk, "data")
+                and chunk.data
+                and isinstance(chunk.data, list)
+                and len(chunk.data) >= 1
+            ):
+                message_chunk = chunk.data[0]
+                content = getattr(message_chunk, "content", None)
+                if content is None and isinstance(message_chunk, dict):
+                    content = message_chunk.get("content")
+                if content:
+                    content_after_rejoin += content
 
         if chunk.event == "end":
             elog("Stream completed after rejoin", {})

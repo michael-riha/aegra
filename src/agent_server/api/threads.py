@@ -94,11 +94,9 @@ async def create_thread(
         if isinstance(val, dict):
             return val
         # Some mocks might pretend to be mapping; try to convert safely
-        try:
+        with contextlib.suppress(Exception):
             if hasattr(val, "items"):
                 return dict(val.items())  # type: ignore[attr-defined]
-        except Exception:
-            pass
         return default
 
     coerced_thread_id = _coerce_str(
@@ -239,7 +237,9 @@ async def get_thread_history_post(
             agent = await langgraph_service.get_graph(graph_id)
         except Exception as e:
             logger.exception("Failed to load graph '%s' for history", graph_id)
-            raise HTTPException(500, f"Failed to load graph '{graph_id}': {str(e)}") from e
+            raise HTTPException(
+                500, f"Failed to load graph '{graph_id}': {str(e)}"
+            ) from e
 
         # Build config with user context and thread_id
         config: dict[str, Any] = create_thread_config(thread_id, user, {})
