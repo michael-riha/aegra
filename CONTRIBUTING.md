@@ -15,39 +15,53 @@ Aegra is an open source LangGraph Platform alternative, and we welcome all contr
    cd aegra
    ```
 
-2. **Environment Setup**
+2. **Install uv** (if not already installed)
 
    ```bash
-   # Install dependencies
-   uv install
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
 
+3. **Sync Dependencies**
+
+   ```bash
+   # Sync environment and dependencies
+   uv sync
+   
    # Activate virtual environment
    source .venv/bin/activate  # Mac/Linux
    # OR .venv/Scripts/activate  # Windows
+   ```
 
+4. **Environment Configuration**
+
+   ```bash
    # Copy environment file
    cp .env.example .env
+   # Edit .env with your settings (API keys, etc.)
    ```
 
-3. **Database Setup**
+5. **Start Everything** (Database + Migrations + Server)
 
    ```bash
-   # Start PostgreSQL
-   docker-compose up -d postgres
-
-   # Run migrations
-   alembic upgrade head
+   # This starts PostgreSQL, runs migrations, and starts the server
+   docker compose up aegra
    ```
 
-4. **Run Tests**
+6. **Verify It Works**
 
    ```bash
+   # Health check
+   curl http://localhost:8000/health
+   
+   # Interactive API docs
+   open http://localhost:8000/docs
+   ```
+
+7. **Run Tests** (in a separate terminal)
+
+   ```bash
+   source .venv/bin/activate
    pytest
-   ```
-
-5. **Start Development Server**
-   ```bash
-   python run_server.py
    ```
 
 ## 🎯 How to Contribute
