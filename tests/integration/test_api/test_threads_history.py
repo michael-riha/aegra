@@ -6,15 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 # Reuse shared test helpers
-from tests.utils.test_helpers import (
-    create_test_app,
-    make_client,
-    DummySessionBase,
-    override_get_session_dep,
-    FakeAgent,
-    make_snapshot,
-    patch_langgraph_service,
-)
+from tests.fixtures.clients import create_test_app, make_client
+from tests.fixtures.database import DummySessionBase, override_get_session_dep
+from tests.fixtures.langgraph import FakeAgent, make_snapshot, patch_langgraph_service
 from agent_server.core.orm import get_session as core_get_session  # for dependency override
 
 

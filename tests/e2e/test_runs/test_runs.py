@@ -1,6 +1,6 @@
 import pytest
 # Match import style used by other e2e tests when run as top-level modules
-from e2e._utils import get_e2e_client, elog
+from tests.e2e._utils import get_e2e_client, elog
 
 
 @pytest.mark.e2e
