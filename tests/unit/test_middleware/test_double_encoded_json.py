@@ -6,7 +6,7 @@ without requiring database or full application integration.
 import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock
-from src.agent_server.middleware.double_encoded_json import DoubleEncodedJSONMiddleware
+from agent_server.middleware.double_encoded_json import DoubleEncodedJSONMiddleware
 
 
 @pytest.mark.asyncio
