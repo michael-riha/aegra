@@ -10,7 +10,18 @@ from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Thread, ThreadCreate, ThreadList, ThreadSearchRequest, ThreadSearchResponse, ThreadState, ThreadHistoryRequest, User, ThreadCheckpoint
+from ..models import (
+    Thread,
+    ThreadCheckpoint,
+    ThreadCheckpointPostRequest,
+    ThreadCreate,
+    ThreadHistoryRequest,
+    ThreadList,
+    ThreadSearchRequest,
+    ThreadSearchResponse,
+    ThreadState,
+    User,
+)
 from ..core.auth_deps import get_current_user
 from ..core.orm import Thread as ThreadORM, Run as RunORM, get_session
 from ..core.database import db_manager
@@ -150,6 +161,7 @@ async def get_thread(
 async def get_thread_state_at_checkpoint(
     thread_id: str,
     checkpoint_id: str,
+    subgraphs: Optional[bool] = Query(False, description="Include states from subgraphs"),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
@@ -184,8 +196,8 @@ async def get_thread_state_at_checkpoint(
 
         # Fetch state at checkpoint
         try:
-            config = await agent.aupdate_state(config, values={"checkpoint_id": checkpoint_id})
-            state_snapshot = await agent.aget_state(config)
+            agent = agent.with_config(config)
+            state_snapshot = await agent.aget_state(config, subgraphs=subgraphs)
         except Exception as e:
             logger.exception("Failed to retrieve state at checkpoint '%s' for thread '%s'", checkpoint_id, thread_id)
             raise HTTPException(500, f"Failed to retrieve state at checkpoint '{checkpoint_id}': {str(e)}")
@@ -211,13 +223,15 @@ async def get_thread_state_at_checkpoint(
 @router.post("/threads/{thread_id}/state/checkpoint", response_model=ThreadState)
 async def get_thread_state_at_checkpoint_post(
     thread_id: str,
-    request: ThreadCheckpoint,
+    request: ThreadCheckpointPostRequest,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
     """Get thread state at a specific checkpoint (POST method - for SDK compatibility)"""
     # Reuse GET logic by calling the function directly
-    output = await get_thread_state_at_checkpoint(thread_id, request.checkpoint_id, user, session)
+    checkpoint = request.checkpoint
+    subgraphs = request.subgraphs
+    output = await get_thread_state_at_checkpoint(thread_id, checkpoint.checkpoint_id, subgraphs, user, session)
     return output
 
 

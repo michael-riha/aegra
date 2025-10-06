@@ -1,7 +1,7 @@
 """Agent Protocol Pydantic models"""
 
 from .assistants import Assistant, AssistantCreate, AssistantList, AssistantSearchRequest, AssistantUpdate, AgentSchemas
-from .threads import Thread, ThreadCreate, ThreadList, ThreadSearchRequest, ThreadSearchResponse, ThreadState, ThreadCheckpoint, ThreadHistoryRequest
+from .threads import Thread, ThreadCreate, ThreadList, ThreadSearchRequest, ThreadSearchResponse, ThreadState, ThreadCheckpoint, ThreadCheckpointPostRequest, ThreadHistoryRequest
 from .runs import Run, RunCreate, RunStatus
 from .store import (
     StorePutRequest,
@@ -18,7 +18,7 @@ __all__ = [
     # Assistants
     "Assistant", "AssistantCreate", "AssistantList", "AssistantSearchRequest", "AssistantUpdate", "AgentSchemas",
     # Threads  
-    "Thread", "ThreadCreate", "ThreadList", "ThreadSearchRequest", "ThreadSearchResponse", "ThreadState", "ThreadCheckpoint", "ThreadHistoryRequest",
+    "Thread", "ThreadCreate", "ThreadList", "ThreadSearchRequest", "ThreadSearchResponse", "ThreadState", "ThreadCheckpoint", "ThreadCheckpointPostRequest", "ThreadHistoryRequest",
     # Runs
     "Run", "RunCreate", "RunStatus",
     # Store
