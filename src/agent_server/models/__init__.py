@@ -2,7 +2,7 @@
 
 from .assistants import Assistant, AssistantCreate, AssistantList, AssistantSearchRequest, AssistantUpdate, AgentSchemas
 from .threads import Thread, ThreadCreate, ThreadList, ThreadSearchRequest, ThreadSearchResponse, ThreadState, ThreadCheckpoint, ThreadHistoryRequest
-from .runs import Run, RunCreate, RunList, RunStatus
+from .runs import Run, RunCreate, RunStatus
 from .store import (
     StorePutRequest,
     StoreGetResponse,
@@ -20,7 +20,7 @@ __all__ = [
     # Threads  
     "Thread", "ThreadCreate", "ThreadList", "ThreadSearchRequest", "ThreadSearchResponse", "ThreadState", "ThreadCheckpoint", "ThreadHistoryRequest",
     # Runs
-    "Run", "RunCreate", "RunList", "RunStatus",
+    "Run", "RunCreate", "RunStatus",
     # Store
     "StorePutRequest", "StoreGetResponse", "StoreSearchRequest", "StoreSearchResponse", "StoreItem", "StoreDeleteRequest",
     # Errors
