@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -43,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """FastAPI lifespan context manager for startup/shutdown"""
     # Startup: Initialize database and LangGraph components
     await db_manager.initialize()
@@ -109,7 +110,9 @@ app.include_router(store_router, prefix="", tags=["Store"])
 
 # Error handling
 @app.exception_handler(HTTPException)
-async def agent_protocol_exception_handler(_request: Request, exc: HTTPException):
+async def agent_protocol_exception_handler(
+    _request: Request, exc: HTTPException
+) -> JSONResponse:
     """Convert HTTP exceptions to Agent Protocol error format"""
     return JSONResponse(
         status_code=exc.status_code,
@@ -122,7 +125,7 @@ async def agent_protocol_exception_handler(_request: Request, exc: HTTPException
 
 
 @app.exception_handler(Exception)
-async def general_exception_handler(_request: Request, exc: Exception):
+async def general_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
     """Handle unexpected exceptions"""
     return JSONResponse(
         status_code=500,
@@ -135,7 +138,7 @@ async def general_exception_handler(_request: Request, exc: Exception):
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     """Root endpoint"""
     return {"message": "Aegra", "version": "0.1.0", "status": "running"}
 

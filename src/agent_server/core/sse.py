@@ -191,9 +191,9 @@ class SSEEvent:
     id: str
     event: str
     data: dict[str, Any]
-    timestamp: datetime = None
+    timestamp: datetime | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now(UTC)
 

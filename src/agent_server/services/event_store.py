@@ -177,7 +177,9 @@ class EventStore:
 event_store = EventStore()
 
 
-async def store_sse_event(run_id: str, event_id: str, event_type: str, data: dict):
+async def store_sse_event(
+    run_id: str, event_id: str, event_type: str, data: dict
+) -> SSEEvent:
     """Store SSE event with proper serialization"""
     serializer = GeneralSerializer()
 

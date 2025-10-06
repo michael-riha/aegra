@@ -17,7 +17,7 @@ class DoubleEncodedJSONMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -29,7 +29,7 @@ class DoubleEncodedJSONMiddleware:
         if method in ["POST", "PUT", "PATCH"] and content_type:
             body_parts = []
 
-            async def receive_wrapper():
+            async def receive_wrapper() -> dict:
                 message = await receive()
                 if message["type"] == "http.request":
                     body_parts.append(message.get("body", b""))

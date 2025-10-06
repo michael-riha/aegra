@@ -1,6 +1,7 @@
 """Database manager with LangGraph integration"""
 
 import os
+from typing import Any
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres.aio import AsyncPostgresStore
@@ -10,17 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 class DatabaseManager:
     """Manages database connections and LangGraph persistence components"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.engine: AsyncEngine | None = None
         self._checkpointer: AsyncPostgresSaver | None = None
-        self._checkpointer_cm = None  # holds the contextmanager so we can close it
+        self._checkpointer_cm: Any = None  # holds the contextmanager so we can close it
         self._store: AsyncPostgresStore | None = None
-        self._store_cm = None
+        self._store_cm: Any = None
         self._database_url = os.getenv(
             "DATABASE_URL", "postgresql+asyncpg://user:password@localhost:5432/aegra"
         )
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database connections and LangGraph components"""
         # SQLAlchemy for our minimal Agent Protocol metadata tables
         self.engine = create_async_engine(
@@ -43,7 +44,7 @@ class DatabaseManager:
 
         print("✅ Database and LangGraph components initialized")
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connections"""
         if self.engine:
             await self.engine.dispose()

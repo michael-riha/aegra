@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class ThreadStateService:
     """Service for converting LangGraph snapshots to ThreadState objects"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.serializer = LangGraphSerializer()
 
     def convert_snapshot_to_thread_state(
@@ -125,4 +125,5 @@ class ThreadStateService:
             return None
 
         configurable = config.get("configurable", {})
-        return configurable.get("checkpoint_id")
+        checkpoint_id = configurable.get("checkpoint_id")
+        return str(checkpoint_id) if checkpoint_id is not None else None

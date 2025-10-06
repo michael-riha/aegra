@@ -28,7 +28,7 @@ class InfoResponse(BaseModel):
 
 
 @router.get("/info", response_model=InfoResponse)
-async def info():
+async def info() -> InfoResponse:
     """Simple service information endpoint"""
     return InfoResponse(
         name="Aegra",
@@ -39,7 +39,7 @@ async def info():
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check():
+async def health_check() -> dict[str, str]:
     """Comprehensive health check endpoint"""
     # Import here to avoid circular dependency
     from .database import db_manager
@@ -94,7 +94,7 @@ async def health_check():
 
 
 @router.get("/ready")
-async def readiness_check():
+async def readiness_check() -> dict[str, str]:
     """Kubernetes readiness probe endpoint"""
     from .database import db_manager
 
@@ -133,6 +133,6 @@ async def readiness_check():
 
 
 @router.get("/live")
-async def liveness_check():
+async def liveness_check() -> dict[str, str]:
     """Kubernetes liveness probe endpoint"""
     return {"status": "alive"}

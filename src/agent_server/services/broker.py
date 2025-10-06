@@ -79,7 +79,7 @@ class RunBroker(BaseRunBroker):
 class BrokerManager(BaseBrokerManager):
     """Manages multiple RunBroker instances"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._brokers: dict[str, RunBroker] = {}
         self._cleanup_task: asyncio.Task | None = None
 

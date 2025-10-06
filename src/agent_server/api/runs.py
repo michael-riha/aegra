@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import logging
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -68,7 +69,7 @@ def map_command_to_langgraph(cmd: dict[str, Any]) -> Command:
     )
 
 
-async def set_thread_status(session: AsyncSession, thread_id: str, status: str):
+async def set_thread_status(session: AsyncSession, thread_id: str, status: str) -> None:
     """Update the status column of a thread."""
     await session.execute(
         update(ThreadORM)
@@ -80,7 +81,7 @@ async def set_thread_status(session: AsyncSession, thread_id: str, status: str):
 
 async def update_thread_metadata(
     session: AsyncSession, thread_id: str, assistant_id: str, graph_id: str
-):
+) -> None:
     """Update thread metadata with assistant and graph information (dialect agnostic)."""
     # Read-modify-write to avoid DB-specific JSON concat operators
     thread = await session.scalar(
@@ -109,7 +110,7 @@ async def create_run(
     request: RunCreate,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> Run:
     """Create and execute a new run (persisted)."""
 
     # Validate resume command requirements early
@@ -235,7 +236,7 @@ async def create_and_stream_run(
     request: RunCreate,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> StreamingResponse:
     """Create a new run and stream its execution - persisted + SSE."""
 
     # Validate resume command requirements early
@@ -378,7 +379,7 @@ async def get_run(
     run_id: str,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> Run:
     """Get run by ID (persisted)."""
     stmt = select(RunORM).where(
         RunORM.run_id == str(run_id),
@@ -409,7 +410,7 @@ async def list_runs(
     thread_id: str,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> RunList:
     """List runs for a specific thread (persisted)."""
     stmt = (
         select(RunORM)
@@ -437,7 +438,7 @@ async def update_run(
     request: RunStatus,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> Run:
     """Update run status (for cancellation/interruption, persisted)."""
     print(
         f"[update_run] fetch for update run_id={run_id} thread_id={thread_id} user={user.identity}"
@@ -497,7 +498,7 @@ async def join_run(
     run_id: str,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> dict[str, Any]:
     """Join a run (wait for completion and return final output) - persisted."""
     # Get run and validate it exists
     run_orm = await session.scalar(
@@ -546,7 +547,7 @@ async def stream_run(
     _stream_mode: str | None = Query(None),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> StreamingResponse:
     """Stream run execution with SSE and reconnection support - persisted metadata."""
     print(
         f"[stream_run] fetch for stream run_id={run_id} thread_id={thread_id} user={user.identity}"
@@ -567,7 +568,7 @@ async def stream_run(
     # If already terminal, emit a final end event
     if run_orm.status in ["completed", "failed", "cancelled"]:
 
-        async def generate_final():
+        async def generate_final() -> AsyncIterator[str]:
             yield create_end_event()
 
         print(
@@ -615,7 +616,7 @@ async def cancel_run_endpoint(
     ),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> Run:
     """
     Cancel or interrupt a run (client-compatible endpoint).
 
@@ -722,7 +723,7 @@ async def execute_run_async(
     interrupt_after: str | list[str] | None = None,
     _multitask_strategy: str | None = None,
     subgraphs: bool | None = False,
-):
+) -> None:
     """Execute run asynchronously in background using streaming to capture all events"""  # Use provided session or get a new one
     if session is None:
         maker = _get_session_maker()
@@ -730,7 +731,7 @@ async def execute_run_async(
 
     # Normalize stream_mode once here for all callers/endpoints.
     # Accept "messages-tuple" as an alias of "messages".
-    def _normalize_mode(mode):
+    def _normalize_mode(mode: str | None) -> str | None:
         return (
             "messages" if isinstance(mode, str) and mode == "messages-tuple" else mode
         )
@@ -905,10 +906,10 @@ async def execute_run_async(
 async def update_run_status(
     run_id: str,
     status: str,
-    output=None,
-    error: str = None,
+    output: Any = None,
+    error: str | None = None,
     session: AsyncSession | None = None,
-):
+) -> None:
     """Update run status in database (persisted). If session not provided, opens a short-lived session."""
     owns_session = False
     if session is None:
@@ -951,7 +952,7 @@ async def delete_run(
     ),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> None:
     """
     Delete a run record.
 

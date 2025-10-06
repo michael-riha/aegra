@@ -10,8 +10,10 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from langgraph_sdk import Auth
+from langgraph_sdk.auth.types import MinimalUserDict
 from starlette.authentication import (
     AuthCredentials,
     AuthenticationBackend,
@@ -47,7 +49,7 @@ class LangGraphUser(BaseUser):
     def display_name(self) -> str:
         return self._user_data.get("display_name", self.identity)
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         """Allow access to any additional fields from auth data"""
         if name in self._user_data:
             return self._user_data[name]
@@ -55,7 +57,7 @@ class LangGraphUser(BaseUser):
             f"'{self.__class__.__name__}' object has no attribute '{name}'"
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> MinimalUserDict:
         """Return the underlying user data dict"""
         return self._user_data.copy()
 
@@ -68,7 +70,7 @@ class LangGraphAuthBackend(AuthenticationBackend):
     Starlette's AuthenticationMiddleware.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.auth_instance = self._load_auth_instance()
 
     def _load_auth_instance(self) -> Auth | None:

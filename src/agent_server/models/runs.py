@@ -1,7 +1,7 @@
 """Run-related Pydantic models for Agent Protocol"""
 
 from datetime import datetime
-from typing import Any, Union
+from typing import Any, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -41,11 +41,11 @@ class RunCreate(BaseModel):
         None,
         description="Command for resuming interrupted runs with state updates or navigation",
     )
-    interrupt_before: Union[str, list[str]] | None = Field(
+    interrupt_before: str | list[str] | None = Field(
         None,
         description="Nodes to interrupt immediately before they get executed. Use '*' for all nodes.",
     )
-    interrupt_after: Union[str, list[str]] | None = Field(
+    interrupt_after: str | list[str] | None = Field(
         None,
         description="Nodes to interrupt immediately after they get executed. Use '*' for all nodes.",
     )
@@ -57,7 +57,7 @@ class RunCreate(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_input_command_exclusivity(self):
+    def validate_input_command_exclusivity(self) -> Self:
         """Ensure input and command are mutually exclusive"""
         # Allow empty input dict when command is present (frontend compatibility)
         if self.input is not None and self.command is not None:
