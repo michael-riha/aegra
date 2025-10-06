@@ -160,10 +160,101 @@ We especially welcome contributions in:
 
 ### Testing
 
-- Write tests for new features and bug fixes
-- Use pytest for testing framework
-- Include both unit tests and integration tests
-- Test both success and error scenarios
+**All PRs must include appropriate tests.** We follow a structured testing approach:
+
+#### Test Organization
+
+Our test suite is organized by test type:
+
+```
+tests/
+├── unit/           # Fast, isolated tests (no external dependencies)
+├── integration/    # Tests with database or multiple components
+└── e2e/           # End-to-end tests (full system)
+```
+
+See [tests/README.md](tests/README.md) for detailed documentation.
+
+#### Test Requirements by PR Type
+
+| PR Type | Required Tests | Examples |
+|---------|---------------|----------|
+| **New Feature** | Unit + Integration/E2E | New API endpoint → integration test |
+| **Bug Fix** | Test that reproduces bug | Regression test |
+| **Refactor** | Existing tests must pass | No new tests needed |
+| **New Utility** | Unit tests | Pure function tests |
+| **API Change** | Integration/E2E tests | Full request/response cycle |
+
+#### Writing Tests
+
+**Unit Tests** (`tests/unit/`):
+```python
+# tests/unit/test_utils/test_sse_utils.py
+import pytest
+from src.agent_server.utils import generate_event_id
+
+@pytest.mark.unit
+def test_generate_event_id():
+    event_id = generate_event_id("run-123", 1)
+    assert event_id == "run-123_event_1"
+```
+
+**Integration Tests** (`tests/integration/`):
+```python
+# tests/integration/test_services/test_assistant_service.py
+import pytest
+
+@pytest.mark.integration
+async def test_create_assistant(test_db):
+    # Test with real database
+    service = AssistantService(test_db)
+    assistant = await service.create_assistant(...)
+    assert assistant.assistant_id is not None
+```
+
+**E2E Tests** (`tests/e2e/`):
+```python
+# tests/e2e/test_assistants/test_assistant_crud.py
+import pytest
+from tests.e2e._utils import get_e2e_client
+
+@pytest.mark.e2e
+async def test_full_assistant_workflow():
+    client = get_e2e_client()
+    # Test complete user workflow
+    assistant = await client.assistants.create(...)
+    # ... full test
+```
+
+#### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run by category
+pytest tests/unit/          # Fast unit tests only
+pytest tests/integration/   # Integration tests
+pytest tests/e2e/          # E2E tests
+
+# Run by marker
+pytest -m unit              # All unit tests
+pytest -m "not slow"        # Skip slow tests
+
+# Run specific test
+pytest tests/unit/test_middleware/test_double_encoded_json.py
+```
+
+#### Test Best Practices
+
+- ✅ **Write tests first** (TDD) when fixing bugs
+- ✅ **Use descriptive names**: `test_<what>_<condition>_<expected>`
+- ✅ **One assertion per test** when possible
+- ✅ **Use fixtures** for common setup (see `tests/conftest.py`)
+- ✅ **Make tests idempotent** - use `if_exists="do_nothing"` for E2E tests
+- ✅ **Clean up resources** in `finally` blocks
+- ❌ **Don't skip tests** without a good reason
+- ❌ **Don't test implementation details** - test behavior
 
 ### Documentation
 
@@ -183,12 +274,18 @@ We especially welcome contributions in:
 ```
 aegra/
 ├── src/agent_server/     # Main application code
+│   ├── api/             # FastAPI route handlers
 │   ├── core/            # Database, config, infrastructure
+│   ├── middleware/      # Custom middleware
 │   ├── models/          # Pydantic models and schemas
-│   ├── services/        # Business logic
+│   ├── services/        # Business logic layer
 │   └── utils/           # Helper functions
 ├── graphs/              # Example agent graphs
 ├── tests/               # Test suite
+│   ├── unit/           # Fast, isolated tests
+│   ├── integration/    # Tests with DB/multiple components
+│   ├── e2e/           # End-to-end tests
+│   └── fixtures/      # Shared test fixtures
 ├── docs/                # Documentation
 ├── deployments/         # Docker and deployment configs
 └── alembic/            # Database migrations
