@@ -5,6 +5,7 @@ Welcome to Aegra! This guide will help you get started with development, whether
 ## 📋 Table of Contents
 
 - [🚀 Quick Start for New Developers](#-quick-start-for-new-developers)
+- [✨ Code Quality & Standards](#-code-quality--standards)
 - [📚 Understanding Database Migrations](#-understanding-database-migrations)
 - [🔧 Database Migration Commands](#-database-migration-commands)
 - [🛠️ Development Workflow](#️-development-workflow)
@@ -44,6 +45,78 @@ docker compose up aegra
 ```
 
 🎉 **You're ready to develop!** Visit http://localhost:8000/docs to see the API.
+
+## ✨ Code Quality & Standards
+
+Aegra uses automated code quality enforcement to maintain high standards and consistency.
+
+### Setup
+
+**Option 1: Using Make (Recommended - installs hooks automatically)**
+```bash
+make dev-install     # Installs dependencies + git hooks
+```
+
+**Option 2: Using uv directly**
+```bash
+uv sync
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
+```
+
+The hooks will check your code before every commit.
+
+### What Gets Checked Automatically
+
+When you commit, these checks run automatically:
+- ✅ **Code formatting** (Ruff) - Auto-formats your code
+- ✅ **Linting** (Ruff) - Checks code quality
+- ✅ **Type checking** (mypy) - Validates type hints
+- ✅ **Security** (Bandit) - Scans for vulnerabilities
+- ✅ **Commit message** - Enforces format
+
+### Commit Message Format
+
+**Required format:** `type(scope): description`
+
+```bash
+# Good examples ✅
+git commit -m "feat: add user authentication"
+git commit -m "fix(api): resolve rate limiting bug"
+git commit -m "docs: update installation guide"
+
+# Bad examples ❌
+git commit -m "fixed stuff"
+git commit -m "WIP"
+```
+
+**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`
+
+### Useful Commands
+
+```bash
+make format        # Auto-format code
+make lint          # Check code quality
+make type-check    # Run type checking
+make test          # Run tests
+make test-cov      # Tests with coverage
+make ci-check      # Run all CI checks locally
+```
+
+### Before Committing
+
+```bash
+# Quick check before committing
+make format  # Auto-fix issues
+make test    # Verify tests pass
+
+# Or run everything at once
+make ci-check
+```
+
+📖 **For detailed information**, see:
+- [Code Quality Quick Reference](code-quality.md) - Commands and troubleshooting
+- [CONTRIBUTING.md](../CONTRIBUTING.md) - Complete contribution guide
 
 ## 📚 Understanding Database Migrations
 
