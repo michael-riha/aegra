@@ -14,3 +14,15 @@ wheels/
 
 # Pycharm
 .idea/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Pre-commit
+.pre-commit-cache/
