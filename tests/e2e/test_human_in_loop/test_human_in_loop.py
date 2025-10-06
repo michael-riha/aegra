@@ -35,7 +35,7 @@ async def test_human_in_loop_interrupt_resume_e2e():
             input={"messages": [{"role": "user", "content": "Hello"}]},
             command={"update": {"test": "value"}},
         )
-        assert False, "Expected validation error for input + command"
+        raise AssertionError("Expected validation error for input + command")
     except Exception as e:
         elog(
             "✅ Validation works",
@@ -95,7 +95,9 @@ async def test_human_in_loop_interrupt_resume_e2e():
             assistant_id=assistant_id,
             command={"resume": "yes"},
         )
-        assert False, "Expected validation error for resume on non-interrupted thread"
+        raise AssertionError(
+            "Expected validation error for resume on non-interrupted thread"
+        )
     except Exception as e:
         elog("✅ Resume validation works", {"error_type": type(e).__name__})
 
@@ -109,7 +111,7 @@ async def test_human_in_loop_interrupt_resume_e2e():
     resume_run_id = resume_run["run_id"]
 
     # Wait for completion
-    final_state = await client.runs.join(thread_id, resume_run_id)
+    await client.runs.join(thread_id, resume_run_id)
     completed_run = await client.runs.get(thread_id, resume_run_id)
 
     # Verify final state (completed or interrupted again for more tools)
@@ -219,7 +221,7 @@ async def test_human_in_loop_text_response_e2e():
     text_response_run_id = text_response_run["run_id"]
 
     # Wait for completion
-    final_state = await client.runs.join(thread_id, text_response_run_id)
+    await client.runs.join(thread_id, text_response_run_id)
     completed_run = await client.runs.get(thread_id, text_response_run_id)
 
     # Verify final state is completed (text response should complete the flow)
@@ -361,7 +363,7 @@ async def test_human_in_loop_ignore_tool_call_e2e():
     ignore_run_id = ignore_run["run_id"]
 
     # Wait for completion
-    final_state = await client.runs.join(thread_id, ignore_run_id)
+    await client.runs.join(thread_id, ignore_run_id)
     completed_run = await client.runs.get(thread_id, ignore_run_id)
 
     # Verify final state is completed (ignore should complete the flow)
@@ -490,7 +492,7 @@ async def test_human_in_loop_edit_tool_args_e2e():
     edit_run_id = edit_run["run_id"]
 
     # Wait for completion
-    final_state = await client.runs.join(thread_id, edit_run_id)
+    await client.runs.join(thread_id, edit_run_id)
     completed_run = await client.runs.get(thread_id, edit_run_id)
 
     # Verify final state is completed (edit should execute tools and complete)
@@ -621,7 +623,7 @@ async def test_human_in_loop_mark_as_resolved_e2e():
     resolve_run_id = resolve_run["run_id"]
 
     # Wait for completion
-    final_state = await client.runs.join(thread_id, resolve_run_id)
+    await client.runs.join(thread_id, resolve_run_id)
     completed_run = await client.runs.get(thread_id, resolve_run_id)
 
     # Verify final state is completed (resolve should terminate immediately)

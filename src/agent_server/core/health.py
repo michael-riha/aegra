@@ -1,5 +1,7 @@
 """Health check endpoints"""
 
+import contextlib
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -121,16 +123,12 @@ async def readiness_check():
         checkpointer = await db_manager.get_checkpointer()
         store = await db_manager.get_store()
         # lightweight probes
-        try:
+        with contextlib.suppress(Exception):
             await checkpointer.aget_tuple(
                 {"configurable": {"thread_id": "ready-check"}}
             )
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             await store.aget(("ready",), "check")
-        except Exception:
-            pass
     except Exception as e:
         raise HTTPException(
             status_code=503,

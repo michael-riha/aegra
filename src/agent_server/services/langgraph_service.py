@@ -98,7 +98,7 @@ class LangGraphService:
         NS = ASSISTANT_NAMESPACE_UUID
         async for session in get_session():
             try:
-                for graph_id in self._graph_registry.keys():
+                for graph_id in self._graph_registry:
                     assistant_id = str(uuid5(NS, graph_id))
                     existing = await session.scalar(
                         select(AssistantORM).where(

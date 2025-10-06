@@ -146,7 +146,7 @@ class AssistantService:
 
         # Validate graph can be loaded
         try:
-            graph = await self.langgraph_service.get_graph(graph_id)
+            await self.langgraph_service.get_graph(graph_id)
         except Exception as e:
             raise HTTPException(400, f"Failed to load graph: {str(e)}")
 

@@ -1,6 +1,7 @@
 """Persistent event store for SSE replay functionality (Postgres-backed)."""
 
 import asyncio
+import contextlib
 import json
 from datetime import UTC, datetime
 
@@ -27,10 +28,8 @@ class EventStore:
     async def stop_cleanup_task(self) -> None:
         if self._cleanup_task and not self._cleanup_task.done():
             self._cleanup_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
 
     async def store_event(self, run_id: str, event: SSEEvent) -> None:
         """Persist an event with sequence extracted from id suffix.

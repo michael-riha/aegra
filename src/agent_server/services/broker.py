@@ -1,6 +1,7 @@
 """Event broker for managing run-specific event queues"""
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from typing import Any
@@ -116,10 +117,8 @@ class BrokerManager(BaseBrokerManager):
         """Stop background cleanup task"""
         if self._cleanup_task and not self._cleanup_task.done():
             self._cleanup_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
 
     async def _cleanup_old_brokers(self) -> None:
         """Background task to clean up old finished brokers"""
@@ -127,7 +126,7 @@ class BrokerManager(BaseBrokerManager):
             try:
                 await asyncio.sleep(300)  # Check every 5 minutes
 
-                current_time = asyncio.get_event_loop().time()
+                asyncio.get_event_loop().time()
                 to_remove = []
 
                 for run_id, broker in self._brokers.items():

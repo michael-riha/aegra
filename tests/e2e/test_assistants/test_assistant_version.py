@@ -77,7 +77,7 @@ async def test_change_assistant_version():
     )
 
     # 2. Patch assistant to create a new version
-    updated_assistant = await client.assistants.update(
+    await client.assistants.update(
         name="Test-Updated",
         description="Updated Test Assistant",
         graph_id="agent",

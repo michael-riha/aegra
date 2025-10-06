@@ -1,6 +1,7 @@
 """Thread endpoints for Agent Protocol"""
 
 import asyncio
+import contextlib
 import json
 import logging
 from datetime import UTC, datetime
@@ -75,10 +76,8 @@ async def create_thread(
     session.add(thread_orm)
     await session.commit()
     # In tests, session.refresh may be a no-op; guard access to columns accordingly
-    try:
+    with contextlib.suppress(Exception):
         await session.refresh(thread_orm)
-    except Exception:
-        pass
 
     # TODO: initialize LangGraph checkpoint with initial_state if provided
 
@@ -410,10 +409,6 @@ async def search_threads(
         # For each key/value, filter JSONB field
         for key, value in request.metadata.items():
             stmt = stmt.where(ThreadORM.metadata_json[key].as_string() == str(value))
-
-    # Count total first
-    _count_result = await session.scalars(stmt)
-    total = len(_count_result.all())
 
     offset = request.offset or 0
     limit = request.limit or 20
