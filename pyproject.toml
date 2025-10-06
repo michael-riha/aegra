@@ -58,13 +58,45 @@ packages = ["src/agent_server"]
 [tool.hatch.build.targets.wheel.sources]
 "graphs/react_agent" = "react_agent"
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ['py311']
+target-version = "py311"
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "ARG",   # flake8-unused-arguments
+    "SIM",   # flake8-simplify
+    "TCH",   # flake8-type-checking
+    "PTH",   # flake8-use-pathlib
+    "ERA",   # eradicate (commented-out code)
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults (FastAPI Depends)
+    "UP007", # use X | Y for type annotations (keep Optional for clarity)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "ARG",   # unused arguments in tests are common
+    "S101",  # assert statements are expected in tests
+]
+"alembic/**/*.py" = [
+    "ERA",   # commented code in migrations is intentional
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
@@ -83,13 +115,39 @@ markers = [
     "e2e: marks tests as end-to-end tests",
 ]
 
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "alembic"]
+skips = ["B101"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/__pycache__/*", "*/alembic/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
+
 [dependency-groups]
 dev = [
-    "black>=25.1.0",
-    "isort>=6.0.1",
+    "ruff>=0.8.4",
     "langgraph-sdk==0.2.4",
     "mypy>=1.17.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pytest-cov>=6.2.1",
+    "pre-commit>=4.0.0",
+    "bandit[toml]>=1.8.0",
 ]
