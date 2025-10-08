@@ -10,7 +10,7 @@ from .assistants import (
 )
 from .auth import AuthContext, TokenPayload, User
 from .errors import AgentProtocolError, get_error_type
-from .runs import Run, RunCreate, RunList, RunStatus
+from .runs import Run, RunCreate, RunStatus
 from .store import (
     StoreDeleteRequest,
     StoreGetResponse,
@@ -22,6 +22,7 @@ from .store import (
 from .threads import (
     Thread,
     ThreadCheckpoint,
+    ThreadCheckpointPostRequest,
     ThreadCreate,
     ThreadHistoryRequest,
     ThreadList,
@@ -46,11 +47,11 @@ __all__ = [
     "ThreadSearchResponse",
     "ThreadState",
     "ThreadCheckpoint",
+    "ThreadCheckpointPostRequest",
     "ThreadHistoryRequest",
     # Runs
     "Run",
     "RunCreate",
-    "RunList",
     "RunStatus",
     # Store
     "StorePutRequest",

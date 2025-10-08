@@ -22,7 +22,7 @@ from ..core.orm import Thread as ThreadORM
 from ..core.orm import _get_session_maker, get_session
 from ..core.serializers import GeneralSerializer
 from ..core.sse import create_end_event, get_sse_headers
-from ..models import Run, RunCreate, RunList, RunStatus, User
+from ..models import Run, RunCreate, RunStatus, User
 from ..services.langgraph_service import create_run_config, get_langgraph_service
 from ..services.streaming_service import streaming_service
 from ..utils.assistants import resolve_assistant_id
@@ -405,19 +405,25 @@ async def get_run(
     )
 
 
-@router.get("/threads/{thread_id}/runs", response_model=RunList)
+@router.get("/threads/{thread_id}/runs", response_model=list[Run])
 async def list_runs(
     thread_id: str,
+    limit: int = Query(10, ge=1, description="Maximum number of runs to return"),
+    offset: int = Query(0, ge=0, description="Number of runs to skip for pagination"),
+    status: str | None = Query(None, description="Filter by run status"),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> RunList:
+) -> list[Run]:
     """List runs for a specific thread (persisted)."""
     stmt = (
         select(RunORM)
         .where(
             RunORM.thread_id == thread_id,
             RunORM.user_id == user.identity,
+            *([RunORM.status == status] if status else []),
         )
+        .limit(limit)
+        .offset(offset)
         .order_by(RunORM.created_at.desc())
     )
     print(f"[list_runs] querying DB thread_id={thread_id} user={user.identity}")
@@ -428,7 +434,7 @@ async def list_runs(
         for r in rows
     ]
     print(f"[list_runs] total={len(runs)} user={user.identity} thread_id={thread_id}")
-    return RunList(runs=runs, total=len(runs))
+    return runs
 
 
 @router.patch("/threads/{thread_id}/runs/{run_id}")

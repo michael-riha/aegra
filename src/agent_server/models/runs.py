@@ -93,12 +93,6 @@ class Run(BaseModel):
         from_attributes = True
 
 
-class RunList(BaseModel):
-    """Response model for listing runs"""
-
-    runs: list[Run]
-    total: int
-
 
 class RunStatus(BaseModel):
     """Simple run status response"""
