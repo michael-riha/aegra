@@ -141,23 +141,23 @@ async def test_assistant_search_metadata():
         search_test_group1 = await client.assistants.search(
             metadata={"category": "test", "group": "1"}
         )
-        assert (
-            len(search_test_group1) == 2
-        ), f"Expected 2 results, got {len(search_test_group1)}"
+        assert len(search_test_group1) == 2, (
+            f"Expected 2 results, got {len(search_test_group1)}"
+        )
 
         search_test_group2 = await client.assistants.search(
             metadata={"category": "test", "group": "2"}
         )
-        assert (
-            len(search_test_group2) == 1
-        ), f"Expected 1 result, got {len(search_test_group2)}"
+        assert len(search_test_group2) == 1, (
+            f"Expected 1 result, got {len(search_test_group2)}"
+        )
 
         search_nonexistent = await client.assistants.search(
             metadata={"category": "staging"}
         )
-        assert (
-            len(search_nonexistent) == 0
-        ), f"Expected 0 results, got {len(search_nonexistent)}"
+        assert len(search_nonexistent) == 0, (
+            f"Expected 0 results, got {len(search_nonexistent)}"
+        )
 
     finally:
         # 3. Cleanup all assistants

@@ -47,9 +47,9 @@ async def test_assistant_deletion_with_active_runs():
 
     # 5. Verify run is also deleted/cancelled
     runs_list = await client.runs.list(thread_id)
-    assert all(
-        r["assistant_id"] != assistant_id for r in runs_list
-    ), "Run should have been deleted/cancelled when assistant was deleted"
+    assert all(r["assistant_id"] != assistant_id for r in runs_list), (
+        "Run should have been deleted/cancelled when assistant was deleted"
+    )
 
 
 @pytest.mark.e2e

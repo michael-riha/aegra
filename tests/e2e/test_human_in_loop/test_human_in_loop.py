@@ -71,9 +71,9 @@ async def test_human_in_loop_interrupt_resume_e2e():
             elog("Run completed without interrupt", interrupted_run)
             return
 
-    assert (
-        interrupted_run["status"] == "interrupted"
-    ), f"Expected interrupted, got {interrupted_run['status']}"
+    assert interrupted_run["status"] == "interrupted", (
+        f"Expected interrupted, got {interrupted_run['status']}"
+    )
     elog("✅ Interrupt detected", {"run_id": run_id})
 
     # Verify thread history has interrupt
@@ -189,9 +189,9 @@ async def test_human_in_loop_text_response_e2e():
             elog("Run completed without interrupt", interrupted_run)
             return
 
-    assert (
-        interrupted_run["status"] == "interrupted"
-    ), f"Expected interrupted, got {interrupted_run['status']}"
+    assert interrupted_run["status"] == "interrupted", (
+        f"Expected interrupted, got {interrupted_run['status']}"
+    )
     elog("✅ Interrupt detected", {"run_id": run_id})
 
     # Verify thread history has interrupt
@@ -249,12 +249,12 @@ async def test_human_in_loop_text_response_e2e():
             if "interrupted for human input" not in m.get("content", "")
         ]
 
-        assert (
-            len(actual_tool_msgs) == 0
-        ), f"Expected no actual tool execution after text response, but found {len(actual_tool_msgs)} actual tool messages"
-        assert (
-            len(interruption_msgs) > 0
-        ), "Expected interruption messages after text response"
+        assert len(actual_tool_msgs) == 0, (
+            f"Expected no actual tool execution after text response, but found {len(actual_tool_msgs)} actual tool messages"
+        )
+        assert len(interruption_msgs) > 0, (
+            "Expected interruption messages after text response"
+        )
 
         # Verify human message was added to conversation
         human_msgs_content = [m.get("content", "") for m in user_msgs]
@@ -338,9 +338,9 @@ async def test_human_in_loop_ignore_tool_call_e2e():
             elog("Run completed without interrupt", interrupted_run)
             return
 
-    assert (
-        interrupted_run["status"] == "interrupted"
-    ), f"Expected interrupted, got {interrupted_run['status']}"
+    assert interrupted_run["status"] == "interrupted", (
+        f"Expected interrupted, got {interrupted_run['status']}"
+    )
     elog("✅ Interrupt detected", {"run_id": run_id})
 
     # Verify thread history has interrupt
@@ -391,9 +391,9 @@ async def test_human_in_loop_ignore_tool_call_e2e():
             if "cancelled by human operator" not in m.get("content", "")
         ]
 
-        assert (
-            len(actual_tool_msgs) == 0
-        ), f"Expected no actual tool execution after ignore, but found {len(actual_tool_msgs)} actual tool messages"
+        assert len(actual_tool_msgs) == 0, (
+            f"Expected no actual tool execution after ignore, but found {len(actual_tool_msgs)} actual tool messages"
+        )
         assert len(cancellation_msgs) > 0, "Expected cancellation messages after ignore"
 
         elog(
@@ -463,9 +463,9 @@ async def test_human_in_loop_edit_tool_args_e2e():
             elog("Run completed without interrupt", interrupted_run)
             return
 
-    assert (
-        interrupted_run["status"] == "interrupted"
-    ), f"Expected interrupted, got {interrupted_run['status']}"
+    assert interrupted_run["status"] == "interrupted", (
+        f"Expected interrupted, got {interrupted_run['status']}"
+    )
     elog("✅ Interrupt detected", {"run_id": run_id})
 
     # Edit the tool arguments
@@ -608,9 +608,9 @@ async def test_human_in_loop_mark_as_resolved_e2e():
             elog("Run completed without interrupt", interrupted_run)
             return
 
-    assert (
-        interrupted_run["status"] == "interrupted"
-    ), f"Expected interrupted, got {interrupted_run['status']}"
+    assert interrupted_run["status"] == "interrupted", (
+        f"Expected interrupted, got {interrupted_run['status']}"
+    )
     elog("✅ Interrupt detected", {"run_id": run_id})
 
     # Mark as resolved (goto END command)
@@ -640,9 +640,9 @@ async def test_human_in_loop_mark_as_resolved_e2e():
 
         assert len(user_msgs) >= 1 and len(ai_msgs) >= 1
         # Should have no tool messages at all - conversation was resolved before tools
-        assert (
-            len(tool_msgs) == 0
-        ), f"Expected no tool messages after mark as resolved, but found {len(tool_msgs)}"
+        assert len(tool_msgs) == 0, (
+            f"Expected no tool messages after mark as resolved, but found {len(tool_msgs)}"
+        )
 
         elog(
             "✅ Mark as resolved verified",
@@ -710,9 +710,9 @@ async def test_human_in_loop_streaming_interrupt_resume_e2e():
         if event_count > 50:  # Safety limit
             break
 
-    assert (
-        interrupt_detected
-    ), f"Expected interrupt in stream after {event_count} events"
+    assert interrupt_detected, (
+        f"Expected interrupt in stream after {event_count} events"
+    )
 
     # Get run_id from thread history
     history = await client.threads.get_history(thread_id)

@@ -52,9 +52,9 @@ async def test_history_endpoint_e2e():
     history_after = await client.threads.get_history(thread_id)
     elog("Threads.get_history after run", history_after)
     assert isinstance(history_after, list)
-    assert (
-        len(history_after) >= 1
-    ), f"Expected at least one checkpoint after run; got {len(history_after)}"
+    assert len(history_after) >= 1, (
+        f"Expected at least one checkpoint after run; got {len(history_after)}"
+    )
 
     # Validate pagination with limit
     limited = await client.threads.get_history(thread_id, limit=1)

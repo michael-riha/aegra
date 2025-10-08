@@ -47,33 +47,33 @@ async def test_run_join_returns_actual_output():
 
     # Verify output is not empty (the main fix)
     assert final_output is not None, "Final output should not be None"
-    assert (
-        final_output != {}
-    ), "Final output should not be empty dict - this was the bug!"
+    assert final_output != {}, (
+        "Final output should not be empty dict - this was the bug!"
+    )
 
     # The output should be a dict containing the final state
-    assert isinstance(
-        final_output, dict
-    ), f"Expected dict output, got {type(final_output)}"
+    assert isinstance(final_output, dict), (
+        f"Expected dict output, got {type(final_output)}"
+    )
 
     # Verify the run details also show the correct output
     run_details = await client.runs.get(thread_id, run_id)
     elog("Runs.get details", run_details)
 
-    assert (
-        run_details["status"] == "completed"
-    ), f"Expected completed status, got {run_details['status']}"
-    assert (
-        run_details["output"] is not None
-    ), "Run output should not be None in database"
-    assert (
-        run_details["output"] != {}
-    ), "Run output should not be empty dict in database"
+    assert run_details["status"] == "completed", (
+        f"Expected completed status, got {run_details['status']}"
+    )
+    assert run_details["output"] is not None, (
+        "Run output should not be None in database"
+    )
+    assert run_details["output"] != {}, (
+        "Run output should not be empty dict in database"
+    )
 
     # Verify join and get return the same output
-    assert (
-        final_output == run_details["output"]
-    ), "Join output should match stored run output"
+    assert final_output == run_details["output"], (
+        "Join output should match stored run output"
+    )
 
     elog(
         "✅ Test passed - join now returns actual output instead of empty dict!",
