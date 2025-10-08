@@ -93,7 +93,6 @@ class Run(BaseModel):
         from_attributes = True
 
 
-
 class RunStatus(BaseModel):
     """Simple run status response"""
 

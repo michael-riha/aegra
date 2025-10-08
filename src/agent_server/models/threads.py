@@ -1,7 +1,7 @@
 """Thread-related Pydantic models for Agent Protocol"""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -64,8 +64,9 @@ class ThreadCheckpoint(BaseModel):
 
 class ThreadCheckpointPostRequest(BaseModel):
     """Request model for fetching thread checkpoint"""
+
     checkpoint: ThreadCheckpoint = Field(description="Checkpoint to fetch")
-    subgraphs: Optional[bool] = Field(False, description="Include subgraph states")
+    subgraphs: bool | None = Field(False, description="Include subgraph states")
 
 
 class ThreadState(BaseModel):

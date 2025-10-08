@@ -5,7 +5,7 @@ import contextlib
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any, Optional, List
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,24 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..api.runs import active_runs
-from ..models import (
-    Thread,
-    ThreadCheckpoint,
-    ThreadCheckpointPostRequest,
-    ThreadCreate,
-    ThreadHistoryRequest,
-    ThreadList,
-    ThreadSearchRequest,
-    ThreadSearchResponse,
-    ThreadState,
-    User,
-)
 from ..core.auth_deps import get_current_user
 from ..core.orm import Run as RunORM
 from ..core.orm import Thread as ThreadORM
 from ..core.orm import get_session
 from ..models import (
     Thread,
+    ThreadCheckpointPostRequest,
     ThreadCreate,
     ThreadHistoryRequest,
     ThreadList,
@@ -182,9 +171,9 @@ async def get_thread(
 async def get_thread_state_at_checkpoint(
     thread_id: str,
     checkpoint_id: str,
-    subgraphs: Optional[bool] = Query(False, description="Include states from subgraphs"),
+    subgraphs: bool | None = Query(False, description="Include states from subgraphs"),
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ):
     """Get thread state at a specific checkpoint"""
     try:
@@ -203,16 +192,24 @@ async def get_thread_state_at_checkpoint(
             raise HTTPException(404, f"Thread '{thread_id}' has no associated graph")
 
         # Get compiled graph
-        from ..services.langgraph_service import get_langgraph_service, create_thread_config
+        from ..services.langgraph_service import (
+            create_thread_config,
+            get_langgraph_service,
+        )
+
         langgraph_service = get_langgraph_service()
         try:
             agent = await langgraph_service.get_graph(graph_id)
         except Exception as e:
-            logger.exception("Failed to load graph '%s' for checkpoint retrieval", graph_id)
-            raise HTTPException(500, f"Failed to load graph '{graph_id}': {str(e)}")
+            logger.exception(
+                "Failed to load graph '%s' for checkpoint retrieval", graph_id
+            )
+            raise HTTPException(
+                500, f"Failed to load graph '{graph_id}': {str(e)}"
+            ) from e
 
         # Build config with user context and thread_id
-        config: Dict[str, Any] = create_thread_config(thread_id, user, {})
+        config: dict[str, Any] = create_thread_config(thread_id, user, {})
         config["configurable"]["checkpoint_id"] = checkpoint_id
 
         # Fetch state at checkpoint
@@ -220,11 +217,21 @@ async def get_thread_state_at_checkpoint(
             agent = agent.with_config(config)
             state_snapshot = await agent.aget_state(config, subgraphs=subgraphs)
         except Exception as e:
-            logger.exception("Failed to retrieve state at checkpoint '%s' for thread '%s'", checkpoint_id, thread_id)
-            raise HTTPException(500, f"Failed to retrieve state at checkpoint '{checkpoint_id}': {str(e)}")
+            logger.exception(
+                "Failed to retrieve state at checkpoint '%s' for thread '%s'",
+                checkpoint_id,
+                thread_id,
+            )
+            raise HTTPException(
+                500,
+                f"Failed to retrieve state at checkpoint '{checkpoint_id}': {str(e)}",
+            ) from e
 
         if not state_snapshot:
-            raise HTTPException(404, f"No state found at checkpoint '{checkpoint_id}' for thread '{thread_id}'")
+            raise HTTPException(
+                404,
+                f"No state found at checkpoint '{checkpoint_id}' for thread '{thread_id}'",
+            )
 
         # Convert snapshot to ThreadCheckpoint using service
         thread_checkpoint = thread_state_service.convert_snapshot_to_thread_state(
@@ -237,8 +244,12 @@ async def get_thread_state_at_checkpoint(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("Error retrieving checkpoint '%s' for thread '%s'", checkpoint_id, thread_id)
-        raise HTTPException(500, f"Error retrieving checkpoint '{checkpoint_id}': {str(e)}")
+        logger.exception(
+            "Error retrieving checkpoint '%s' for thread '%s'", checkpoint_id, thread_id
+        )
+        raise HTTPException(
+            500, f"Error retrieving checkpoint '{checkpoint_id}': {str(e)}"
+        ) from e
 
 
 @router.post("/threads/{thread_id}/state/checkpoint", response_model=ThreadState)
@@ -246,13 +257,15 @@ async def get_thread_state_at_checkpoint_post(
     thread_id: str,
     request: ThreadCheckpointPostRequest,
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ):
     """Get thread state at a specific checkpoint (POST method - for SDK compatibility)"""
     # Reuse GET logic by calling the function directly
     checkpoint = request.checkpoint
     subgraphs = request.subgraphs
-    output = await get_thread_state_at_checkpoint(thread_id, checkpoint.checkpoint_id, subgraphs, user, session)
+    output = await get_thread_state_at_checkpoint(
+        thread_id, checkpoint.checkpoint_id, subgraphs, user, session
+    )
     return output
 
 
