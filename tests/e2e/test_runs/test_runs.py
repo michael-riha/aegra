@@ -61,8 +61,8 @@ async def test_runs_crud_and_join_e2e():
     # 6) List runs for the thread and ensure our run is present
     runs_list = await client.runs.list(thread_id)
     elog("Runs.list", runs_list)
-    assert isinstance(runs_list, dict) and "runs" in runs_list
-    assert any(r["run_id"] == run_id for r in runs_list["runs"])
+    assert isinstance(runs_list, list)
+    assert any(r["run_id"] == run_id for r in runs_list)
 
     # 7) Stream endpoint after completion: should yield an end event quickly.
     # Reuse the SDK join_stream to align with current helper patterns.
@@ -121,8 +121,8 @@ async def test_runs_cancel_e2e():
 
     # Find the most recent run id
     runs_list = await client.runs.list(thread_id)
-    assert "runs" in runs_list and runs_list["runs"], "Expected at least one run for cancellation test"
-    run_id = runs_list["runs"][0]["run_id"]
+    assert len(runs_list) > 0, "Expected at least one run for cancellation test"
+    run_id = runs_list[0]["run_id"]
 
     # Cancel the run
     patched = await client.runs.cancel(thread_id, run_id)

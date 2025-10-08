@@ -46,7 +46,7 @@ async def test_assistant_deletion_with_active_runs():
 
     # 5. Verify run is also deleted/cancelled
     runs_list = await client.runs.list(thread_id)
-    assert all(r["assistant_id"] != assistant_id for r in runs_list["runs"]), \
+    assert all(r["assistant_id"] != assistant_id for r in runs_list), \
         "Run should have been deleted/cancelled when assistant was deleted"
 
 
@@ -95,7 +95,7 @@ async def test_assistant_deletion_with_completed_runs():
 
     # 5. Verify run is also deleted
     runs_list = await client.runs.list(thread_id)
-    assert all(r["assistant_id"] != assistant_id for r in runs_list["runs"])
+    assert all(r["assistant_id"] != assistant_id for r in runs_list)
 
 
 @pytest.mark.e2e
@@ -177,4 +177,4 @@ async def test_assistant_deletion_multiple_runs():
 
     # 5. Verify all runs tied to assistant are deleted
     runs_list = await client.runs.list(thread_id)
-    assert all(r["assistant_id"] != assistant_id for r in runs_list["runs"])
+    assert all(r["assistant_id"] != assistant_id for r in runs_list)
