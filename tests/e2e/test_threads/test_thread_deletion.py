@@ -128,7 +128,7 @@ async def test_thread_deletion_empty_thread():
 
     # 2. Verify no runs exist
     runs_list = await client.runs.list(thread_id)
-    assert len(runs_list["runs"]) == 0
+    assert len(runs_list) == 0
     # 3. Delete thread via SDK
     await client.threads.delete(thread_id)
     elog("Empty thread deleted successfully", {"thread_id": thread_id})
@@ -181,7 +181,7 @@ async def test_thread_deletion_multiple_runs():
 
     # 3. Verify multiple runs exist
     runs_list = await client.runs.list(thread_id)
-    assert len(runs_list["runs"]) >= 2
+    assert len(runs_list) >= 2
     # 4. Delete thread via SDK - should cancel all runs and delete thread
     await client.threads.delete(thread_id)
     elog("Thread with multiple runs deleted successfully", {"thread_id": thread_id})

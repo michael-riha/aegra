@@ -256,7 +256,7 @@ async def get_thread_state_at_checkpoint_post(
     return output
 
 
-@router.post("/threads/{thread_id}/history", response_model=List[ThreadState])
+@router.post("/threads/{thread_id}/history", response_model=list[ThreadState])
 async def get_thread_history_post(
     thread_id: str,
     request: ThreadHistoryRequest,
