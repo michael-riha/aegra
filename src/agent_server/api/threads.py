@@ -5,7 +5,7 @@ import contextlib
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Optional, List
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
