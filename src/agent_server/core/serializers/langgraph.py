@@ -30,7 +30,8 @@ class LangGraphSerializer(Serializer):
                     "error": getattr(task, 'error', None),
                     "interrupts": [],
                     "checkpoint": None,
-                    "state": None
+                    "state": None,
+                    "result": getattr(task, 'result', None)
                 }
                 
                 # Handle task interrupts

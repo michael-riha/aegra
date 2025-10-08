@@ -52,6 +52,12 @@ class ThreadCheckpoint(BaseModel):
     checkpoint_ns: Optional[str] = ""
 
 
+class ThreadCheckpointPostRequest(BaseModel):
+    """Request model for fetching thread checkpoint"""
+    checkpoint: ThreadCheckpoint = Field(description="Checkpoint to fetch")
+    subgraphs: Optional[bool] = Field(False, description="Include subgraph states")
+
+
 class ThreadState(BaseModel):
     """Thread state model for history endpoint"""
     values: Dict[str, Any] = Field(description="Channel values (messages, etc.)")

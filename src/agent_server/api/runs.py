@@ -17,7 +17,7 @@ from ..core.orm import (
 from fastapi.responses import StreamingResponse
 from langgraph.types import Command, Send
 
-from ..models import Run, RunCreate, RunList, RunStatus, User
+from ..models import Run, RunCreate, RunStatus, User
 from ..core.auth_deps import get_current_user
 from ..core.sse import get_sse_headers, create_end_event
 from ..core.auth_ctx import with_auth_ctx
@@ -375,23 +375,28 @@ async def get_run(
     return Run.model_validate({c.name: getattr(run_orm, c.name) for c in run_orm.__table__.columns})
 
 
-@router.get("/threads/{thread_id}/runs", response_model=RunList)
+@router.get("/threads/{thread_id}/runs", response_model=List[Run])
 async def list_runs(
     thread_id: str,
+    limit: int = Query(10, ge=1, description="Maximum number of runs to return"),
+    offset: int = Query(0, ge=0, description="Number of runs to skip for pagination"),
+    status: Optional[str] = Query(None, description="Filter by run status"),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     """List runs for a specific thread (persisted)."""
     stmt = select(RunORM).where(
-        RunORM.thread_id == thread_id,
-        RunORM.user_id == user.identity,
+            RunORM.thread_id == thread_id,
+            RunORM.user_id == user.identity,
+            *( [RunORM.status == status] if status else [] )
+        ).limit(limit).offset(offset
     ).order_by(RunORM.created_at.desc())
     print(f"[list_runs] querying DB thread_id={thread_id} user={user.identity}")
     result = await session.scalars(stmt)
     rows = result.all()
     runs = [Run.model_validate({c.name: getattr(r, c.name) for c in r.__table__.columns}) for r in rows]
     print(f"[list_runs] total={len(runs)} user={user.identity} thread_id={thread_id}")
-    return RunList(runs=runs, total=len(runs))
+    return runs
 
 
 @router.patch("/threads/{thread_id}/runs/{run_id}")
