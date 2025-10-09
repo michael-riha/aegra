@@ -31,14 +31,23 @@ from ..services.langgraph_service import LangGraphService, get_langgraph_service
 
 
 def to_pydantic(row: AssistantORM) -> Assistant:
-    """Convert SQLAlchemy ORM object to Pydantic model with proper type casting."""
-    row_dict = {c.name: getattr(row, c.name) for c in row.__table__.columns}
+    """Convert SQLAlchemy ORM object to Pydantic model with proper type casting.
+
+    Uses from_attributes=True because Assistant ORM has attribute/column name mismatch:
+    - ORM attribute: metadata_dict
+    - DB column: metadata
+    - Pydantic field: metadata (with alias="metadata_dict")
+
+    This is different from Thread/Run where attribute names match column names.
+    """
     # Cast UUIDs to str so they match the Pydantic schema
-    if "assistant_id" in row_dict and row_dict["assistant_id"] is not None:
-        row_dict["assistant_id"] = str(row_dict["assistant_id"])
-    if "user_id" in row_dict and isinstance(row_dict["user_id"], uuid.UUID):
-        row_dict["user_id"] = str(row_dict["user_id"])
-    return Assistant.model_validate(row_dict)
+    if hasattr(row, "assistant_id") and row.assistant_id is not None:
+        row.assistant_id = str(row.assistant_id)
+    if hasattr(row, "user_id") and isinstance(row.user_id, uuid.UUID):
+        row.user_id = str(row.user_id)
+
+    # Use Pydantic's built-in ORM conversion with from_attributes=True
+    return Assistant.model_validate(row, from_attributes=True)
 
 
 def _state_jsonschema(graph) -> dict | None:
