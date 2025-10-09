@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from unittest.mock import Mock
 
 import pytest
+from fastapi import HTTPException
 
 from agent_server.core.orm import Assistant as AssistantORM
 from agent_server.core.orm import AssistantVersion as AssistantVersionORM
@@ -432,7 +433,9 @@ class TestAssistantServiceDatabase:
             "Graph load failed"
         )
 
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            HTTPException, match="Failed to load graph: Graph load failed"
+        ):
             await assistant_service.create_assistant(request, "user-123")
 
         # Verify no objects were added to session
