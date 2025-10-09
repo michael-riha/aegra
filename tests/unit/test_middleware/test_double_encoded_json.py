@@ -259,3 +259,131 @@ async def test_middleware_handles_patch_requests():
     await middleware(scope, receive, send)
 
     assert app.called
+
+
+@pytest.mark.asyncio
+async def test_middleware_handles_more_body_true():
+    """Test middleware handles chunked requests with more_body=True"""
+    app = AsyncMock()
+    middleware = DoubleEncodedJSONMiddleware(app)
+
+    body_part1 = b'{"data":'
+    body_part2 = b' "test"}'
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "headers": [(b"content-type", b"application/json")],
+    }
+
+    call_count = 0
+
+    async def receive():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return {"type": "http.request", "body": body_part1, "more_body": True}
+        elif call_count == 2:
+            return {"type": "http.request", "body": body_part2, "more_body": False}
+        return {"type": "http.disconnect"}
+
+    send = AsyncMock()
+
+    await middleware(scope, receive, send)
+
+    assert app.called
+
+
+@pytest.mark.asyncio
+async def test_middleware_handles_delete_requests():
+    """Test that DELETE requests pass through unchanged"""
+    app = AsyncMock()
+    middleware = DoubleEncodedJSONMiddleware(app)
+
+    scope = {"type": "http", "method": "DELETE", "headers": []}
+    receive = AsyncMock()
+    send = AsyncMock()
+
+    await middleware(scope, receive, send)
+
+    app.assert_called_once_with(scope, receive, send)
+
+
+@pytest.mark.asyncio
+async def test_middleware_handles_missing_content_type():
+    """Test POST request without content-type header"""
+    app = AsyncMock()
+    middleware = DoubleEncodedJSONMiddleware(app)
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "headers": [],
+    }
+    receive = AsyncMock()
+    send = AsyncMock()
+
+    await middleware(scope, receive, send)
+
+    app.assert_called_once_with(scope, receive, send)
+
+
+@pytest.mark.asyncio
+async def test_middleware_handles_unicode_decode_error():
+    """Test handling of invalid UTF-8 bytes"""
+    app = AsyncMock()
+    middleware = DoubleEncodedJSONMiddleware(app)
+
+    invalid_utf8 = b"\xff\xfe"
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "headers": [(b"content-type", b"application/json")],
+    }
+
+    receive_called = False
+
+    async def receive():
+        nonlocal receive_called
+        if not receive_called:
+            receive_called = True
+            return {"type": "http.request", "body": invalid_utf8, "more_body": False}
+        return {"type": "http.disconnect"}
+
+    send = AsyncMock()
+
+    await middleware(scope, receive, send)
+
+    assert app.called
+
+
+@pytest.mark.asyncio
+async def test_middleware_handles_json_array():
+    """Test middleware handles JSON arrays correctly"""
+    app = AsyncMock()
+    middleware = DoubleEncodedJSONMiddleware(app)
+
+    payload = [{"id": 1}, {"id": 2}]
+    body = json.dumps(payload).encode("utf-8")
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "headers": [(b"content-type", b"application/json")],
+    }
+
+    receive_called = False
+
+    async def receive():
+        nonlocal receive_called
+        if not receive_called:
+            receive_called = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        return {"type": "http.disconnect"}
+
+    send = AsyncMock()
+
+    await middleware(scope, receive, send)
+
+    assert app.called
