@@ -11,35 +11,38 @@ from agent_server.core.orm import (
 from tests.fixtures.clients import create_test_app, make_client
 from tests.fixtures.database import DummySessionBase, override_get_session_dep
 from tests.fixtures.langgraph import FakeAgent, make_snapshot, patch_langgraph_service
+from tests.fixtures.test_helpers import DummyThread
 
 
 def _thread_row():
-    class DummyThread:
-        def __init__(self):
-            self.thread_id = "11111111-1111-1111-1111-111111111111"
-            self.status = "idle"
-            self.metadata_json = {"graph_id": "dummy_graph"}
-            self.user_id = "test-user"
-            self.created_at = None
-            self.updated_at = None
+    thread = DummyThread(
+        thread_id="11111111-1111-1111-1111-111111111111",
+        status="idle",
+        metadata={"graph_id": "dummy_graph"},
+        user_id="test-user",
+    )
 
-            class _Col:
-                def __init__(self, name):
-                    self.name = name
+    # Add ORM-specific attributes
+    thread.metadata_json = {"graph_id": "dummy_graph"}
+    thread.created_at = None
+    thread.updated_at = None
 
-            class _T:
-                columns = [
-                    _Col("thread_id"),
-                    _Col("status"),
-                    _Col("metadata"),
-                    _Col("user_id"),
-                    _Col("created_at"),
-                    _Col("updated_at"),
-                ]
+    class _Col:
+        def __init__(self, name):
+            self.name = name
 
-            self.__table__ = _T()
+    class _T:
+        columns = [
+            _Col("thread_id"),
+            _Col("status"),
+            _Col("metadata"),
+            _Col("user_id"),
+            _Col("created_at"),
+            _Col("updated_at"),
+        ]
 
-    return DummyThread()
+    thread.__table__ = _T()
+    return thread
 
 
 @pytest.fixture()

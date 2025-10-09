@@ -1,47 +1,14 @@
 """Integration tests for assistants CRUD operations"""
 
-from datetime import UTC, datetime
-from unittest.mock import AsyncMock
-
 import pytest
 
-from agent_server.models import Assistant
 from agent_server.services.assistant_service import get_assistant_service
 from tests.fixtures.clients import create_test_app, make_client
-
-
-def _make_assistant(
-    assistant_id="test-assistant-123",
-    name="Test Assistant",
-    graph_id="test-graph",
-    metadata=None,
-    user_id="test-user",
-    description=None,
-):
-    """Create a mock assistant object"""
-    return Assistant(
-        assistant_id=assistant_id,
-        name=name,
-        description=description,
-        graph_id=graph_id,
-        metadata_dict=metadata or {},  # Use metadata_dict as per the model alias
-        user_id=user_id,
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-        config={},
-        version=1,
-    )
+from tests.fixtures.test_helpers import make_assistant
 
 
 @pytest.fixture
-def mock_service():
-    """Mock assistant service"""
-    service = AsyncMock()
-    return service
-
-
-@pytest.fixture
-def client(mock_service):
+def client(mock_assistant_service):
     """Create test client with mocked service"""
     app = create_test_app(include_runs=False, include_threads=False)
 
@@ -51,7 +18,7 @@ def client(mock_service):
     app.include_router(assistants_module.router)
 
     # Override the service dependency
-    app.dependency_overrides[get_assistant_service] = lambda: mock_service
+    app.dependency_overrides[get_assistant_service] = lambda: mock_assistant_service
 
     return make_client(app)
 
@@ -59,10 +26,10 @@ def client(mock_service):
 class TestCreateAssistant:
     """Test POST /assistants"""
 
-    def test_create_assistant_basic(self, client, mock_service):
+    def test_create_assistant_basic(self, client, mock_assistant_service):
         """Test creating a basic assistant"""
-        assistant = _make_assistant()
-        mock_service.create_assistant.return_value = assistant
+        assistant = make_assistant()
+        mock_assistant_service.create_assistant.return_value = assistant
 
         resp = client.post(
             "/assistants",
@@ -79,14 +46,14 @@ class TestCreateAssistant:
         assert data["assistant_id"] == "test-assistant-123"
         assert data["name"] == "Test Assistant"
         assert data["graph_id"] == "test-graph"
-        mock_service.create_assistant.assert_called_once()
+        mock_assistant_service.create_assistant.assert_called_once()
 
-    def test_create_assistant_with_metadata(self, client, mock_service):
+    def test_create_assistant_with_metadata(self, client, mock_assistant_service):
         """Test creating assistant with rich metadata"""
-        assistant = _make_assistant(
+        assistant = make_assistant(
             metadata={"description": "A helpful assistant", "tags": ["prod", "v1"]}
         )
-        mock_service.create_assistant.return_value = assistant
+        mock_assistant_service.create_assistant.return_value = assistant
 
         resp = client.post(
             "/assistants",
@@ -109,11 +76,11 @@ class TestCreateAssistant:
             "tags"
         ) == ["prod", "v1"]
 
-    def test_create_assistant_with_config(self, client, mock_service):
+    def test_create_assistant_with_config(self, client, mock_assistant_service):
         """Test creating assistant with custom config"""
-        assistant = _make_assistant()
+        assistant = make_assistant()
         assistant.config = {"temperature": 0.7, "max_tokens": 1000}
-        mock_service.create_assistant.return_value = assistant
+        mock_assistant_service.create_assistant.return_value = assistant
 
         resp = client.post(
             "/assistants",
@@ -134,14 +101,14 @@ class TestCreateAssistant:
 class TestListAssistants:
     """Test GET /assistants"""
 
-    def test_list_assistants_with_results(self, client, mock_service):
+    def test_list_assistants_with_results(self, client, mock_assistant_service):
         """Test listing assistants when user has some"""
         assistants = [
-            _make_assistant("asst-1", "Assistant 1", "graph-1"),
-            _make_assistant("asst-2", "Assistant 2", "graph-2"),
-            _make_assistant("asst-3", "Assistant 3", "graph-1"),
+            make_assistant("asst-1", "Assistant 1", "graph-1"),
+            make_assistant("asst-2", "Assistant 2", "graph-2"),
+            make_assistant("asst-3", "Assistant 3", "graph-1"),
         ]
-        mock_service.list_assistants.return_value = assistants
+        mock_assistant_service.list_assistants.return_value = assistants
 
         resp = client.get("/assistants")
 
@@ -153,9 +120,9 @@ class TestListAssistants:
         assert len(data["assistants"]) == 3
         assert data["assistants"][0]["assistant_id"] == "asst-1"
 
-    def test_list_assistants_empty(self, client, mock_service):
+    def test_list_assistants_empty(self, client, mock_assistant_service):
         """Test listing assistants when user has none"""
-        mock_service.list_assistants.return_value = []
+        mock_assistant_service.list_assistants.return_value = []
 
         resp = client.get("/assistants")
 
@@ -168,15 +135,15 @@ class TestListAssistants:
 class TestGetAssistant:
     """Test GET /assistants/{assistant_id}"""
 
-    def test_get_assistant_success(self, client, mock_service):
+    def test_get_assistant_success(self, client, mock_assistant_service):
         """Test getting an existing assistant"""
-        assistant = _make_assistant(
+        assistant = make_assistant(
             "asst-123",
             "My Assistant",
             "my-graph",
             metadata={"purpose": "testing"},
         )
-        mock_service.get_assistant.return_value = assistant
+        mock_assistant_service.get_assistant.return_value = assistant
 
         resp = client.get("/assistants/asst-123")
 
@@ -186,11 +153,11 @@ class TestGetAssistant:
         assert data["name"] == "My Assistant"
         assert data["graph_id"] == "my-graph"
 
-    def test_get_assistant_not_found(self, client, mock_service):
+    def test_get_assistant_not_found(self, client, mock_assistant_service):
         """Test getting a non-existent assistant"""
         from fastapi import HTTPException
 
-        mock_service.get_assistant.side_effect = HTTPException(
+        mock_assistant_service.get_assistant.side_effect = HTTPException(
             status_code=404, detail="Assistant 'nonexistent' not found"
         )
 
@@ -203,10 +170,10 @@ class TestGetAssistant:
 class TestUpdateAssistant:
     """Test PATCH /assistants/{assistant_id}"""
 
-    def test_update_assistant_name(self, client, mock_service):
+    def test_update_assistant_name(self, client, mock_assistant_service):
         """Test updating assistant name"""
-        updated = _make_assistant(name="Updated Name")
-        mock_service.update_assistant.return_value = updated
+        updated = make_assistant(name="Updated Name")
+        mock_assistant_service.update_assistant.return_value = updated
 
         resp = client.patch(
             "/assistants/test-assistant-123",
@@ -217,10 +184,10 @@ class TestUpdateAssistant:
         data = resp.json()
         assert data["name"] == "Updated Name"
 
-    def test_update_assistant_metadata(self, client, mock_service):
+    def test_update_assistant_metadata(self, client, mock_assistant_service):
         """Test updating assistant metadata"""
-        updated = _make_assistant(metadata={"env": "production", "version": "2.0"})
-        mock_service.update_assistant.return_value = updated
+        updated = make_assistant(metadata={"env": "production", "version": "2.0"})
+        mock_assistant_service.update_assistant.return_value = updated
 
         resp = client.patch(
             "/assistants/test-assistant-123",
@@ -231,11 +198,11 @@ class TestUpdateAssistant:
         data = resp.json()
         assert data["assistant_id"] == "test-assistant-123"
 
-    def test_update_assistant_config(self, client, mock_service):
+    def test_update_assistant_config(self, client, mock_assistant_service):
         """Test updating assistant config"""
-        updated = _make_assistant()
+        updated = make_assistant()
         updated.config = {"model": "gpt-4", "temperature": 0.5}
-        mock_service.update_assistant.return_value = updated
+        mock_assistant_service.update_assistant.return_value = updated
 
         resp = client.patch(
             "/assistants/test-assistant-123",
@@ -246,11 +213,11 @@ class TestUpdateAssistant:
         data = resp.json()
         assert data["config"]["model"] == "gpt-4"
 
-    def test_update_assistant_not_found(self, client, mock_service):
+    def test_update_assistant_not_found(self, client, mock_assistant_service):
         """Test updating non-existent assistant"""
         from fastapi import HTTPException
 
-        mock_service.update_assistant.side_effect = HTTPException(
+        mock_assistant_service.update_assistant.side_effect = HTTPException(
             status_code=404, detail="Assistant not found"
         )
 
@@ -265,24 +232,24 @@ class TestUpdateAssistant:
 class TestDeleteAssistant:
     """Test DELETE /assistants/{assistant_id}"""
 
-    def test_delete_assistant_success(self, client, mock_service):
+    def test_delete_assistant_success(self, client, mock_assistant_service):
         """Test deleting an existing assistant"""
-        mock_service.delete_assistant.return_value = {"status": "deleted"}
+        mock_assistant_service.delete_assistant.return_value = {"status": "deleted"}
 
         resp = client.delete("/assistants/test-assistant-123")
 
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "deleted"
-        mock_service.delete_assistant.assert_called_once_with(
+        mock_assistant_service.delete_assistant.assert_called_once_with(
             "test-assistant-123", "test-user"
         )
 
-    def test_delete_assistant_not_found(self, client, mock_service):
+    def test_delete_assistant_not_found(self, client, mock_assistant_service):
         """Test deleting non-existent assistant"""
         from fastapi import HTTPException
 
-        mock_service.delete_assistant.side_effect = HTTPException(
+        mock_assistant_service.delete_assistant.side_effect = HTTPException(
             status_code=404, detail="Assistant not found"
         )
 
@@ -294,13 +261,13 @@ class TestDeleteAssistant:
 class TestSearchAssistants:
     """Test POST /assistants/search"""
 
-    def test_search_assistants_no_filters(self, client, mock_service):
+    def test_search_assistants_no_filters(self, client, mock_assistant_service):
         """Test searching without filters"""
         assistants = [
-            _make_assistant("asst-1", "Assistant 1"),
-            _make_assistant("asst-2", "Assistant 2"),
+            make_assistant("asst-1", "Assistant 1"),
+            make_assistant("asst-2", "Assistant 2"),
         ]
-        mock_service.search_assistants.return_value = assistants
+        mock_assistant_service.search_assistants.return_value = assistants
 
         resp = client.post("/assistants/search", json={})
 
@@ -309,12 +276,12 @@ class TestSearchAssistants:
         assert isinstance(data, list)
         assert len(data) == 2
 
-    def test_search_assistants_by_graph_id(self, client, mock_service):
+    def test_search_assistants_by_graph_id(self, client, mock_assistant_service):
         """Test searching by graph_id"""
         assistants = [
-            _make_assistant("asst-1", "Assistant 1", "my-graph"),
+            make_assistant("asst-1", "Assistant 1", "my-graph"),
         ]
-        mock_service.search_assistants.return_value = assistants
+        mock_assistant_service.search_assistants.return_value = assistants
 
         resp = client.post(
             "/assistants/search",
@@ -326,12 +293,12 @@ class TestSearchAssistants:
         assert len(data) == 1
         assert data[0]["graph_id"] == "my-graph"
 
-    def test_search_assistants_by_metadata(self, client, mock_service):
+    def test_search_assistants_by_metadata(self, client, mock_assistant_service):
         """Test searching by metadata"""
         assistants = [
-            _make_assistant("asst-1", metadata={"env": "prod"}),
+            make_assistant("asst-1", metadata={"env": "prod"}),
         ]
-        mock_service.search_assistants.return_value = assistants
+        mock_assistant_service.search_assistants.return_value = assistants
 
         resp = client.post(
             "/assistants/search",
@@ -342,10 +309,10 @@ class TestSearchAssistants:
         data = resp.json()
         assert len(data) == 1
 
-    def test_search_assistants_with_pagination(self, client, mock_service):
+    def test_search_assistants_with_pagination(self, client, mock_assistant_service):
         """Test searching with offset and limit"""
-        assistants = [_make_assistant(f"asst-{i}") for i in range(2)]
-        mock_service.search_assistants.return_value = assistants
+        assistants = [make_assistant(f"asst-{i}") for i in range(2)]
+        mock_assistant_service.search_assistants.return_value = assistants
 
         resp = client.post(
             "/assistants/search",
@@ -360,18 +327,18 @@ class TestSearchAssistants:
 class TestCountAssistants:
     """Test POST /assistants/count"""
 
-    def test_count_assistants_no_filters(self, client, mock_service):
+    def test_count_assistants_no_filters(self, client, mock_assistant_service):
         """Test counting all assistants"""
-        mock_service.count_assistants.return_value = 42
+        mock_assistant_service.count_assistants.return_value = 42
 
         resp = client.post("/assistants/count", json={})
 
         assert resp.status_code == 200
         assert resp.json() == 42
 
-    def test_count_assistants_with_filters(self, client, mock_service):
+    def test_count_assistants_with_filters(self, client, mock_assistant_service):
         """Test counting with filters"""
-        mock_service.count_assistants.return_value = 5
+        mock_assistant_service.count_assistants.return_value = 5
 
         resp = client.post(
             "/assistants/count",
@@ -381,9 +348,9 @@ class TestCountAssistants:
         assert resp.status_code == 200
         assert resp.json() == 5
 
-    def test_count_assistants_zero(self, client, mock_service):
+    def test_count_assistants_zero(self, client, mock_assistant_service):
         """Test count returning zero"""
-        mock_service.count_assistants.return_value = 0
+        mock_assistant_service.count_assistants.return_value = 0
 
         resp = client.post("/assistants/count", json={})
 
@@ -394,11 +361,11 @@ class TestCountAssistants:
 class TestSetLatestAssistant:
     """Test POST /assistants/{assistant_id}/latest"""
 
-    def test_set_latest_assistant(self, client, mock_service):
+    def test_set_latest_assistant(self, client, mock_assistant_service):
         """Test setting latest version of assistant"""
-        latest = _make_assistant(name="Latest Version")
+        latest = make_assistant(name="Latest Version")
         latest.version = 5
-        mock_service.set_assistant_latest.return_value = latest
+        mock_assistant_service.set_assistant_latest.return_value = latest
 
         resp = client.post("/assistants/test-assistant-123/latest", json={"version": 5})
 
@@ -411,17 +378,17 @@ class TestSetLatestAssistant:
 class TestListAssistantVersions:
     """Test POST /assistants/{assistant_id}/versions"""
 
-    def test_list_assistant_versions(self, client, mock_service):
+    def test_list_assistant_versions(self, client, mock_assistant_service):
         """Test listing all versions of assistant"""
         versions = [
-            _make_assistant(name="V1"),
-            _make_assistant(name="V2"),
-            _make_assistant(name="V3"),
+            make_assistant(name="V1"),
+            make_assistant(name="V2"),
+            make_assistant(name="V3"),
         ]
         versions[0].version = 1
         versions[1].version = 2
         versions[2].version = 3
-        mock_service.list_assistant_versions.return_value = versions
+        mock_assistant_service.list_assistant_versions.return_value = versions
 
         resp = client.post("/assistants/test-assistant-123/versions")
 
@@ -432,9 +399,9 @@ class TestListAssistantVersions:
         assert data[0]["version"] == 1
         assert data[2]["version"] == 3
 
-    def test_list_assistant_versions_empty(self, client, mock_service):
+    def test_list_assistant_versions_empty(self, client, mock_assistant_service):
         """Test listing versions when there are none"""
-        mock_service.list_assistant_versions.return_value = []
+        mock_assistant_service.list_assistant_versions.return_value = []
 
         resp = client.post("/assistants/test-assistant-123/versions")
 
@@ -446,13 +413,13 @@ class TestListAssistantVersions:
 class TestGetAssistantSchemas:
     """Test GET /assistants/{assistant_id}/schemas"""
 
-    def test_get_assistant_schemas(self, client, mock_service):
+    def test_get_assistant_schemas(self, client, mock_assistant_service):
         """Test getting assistant schemas"""
         schemas = {
             "config_schema": {"type": "object", "properties": {}},
             "state_schema": {"type": "object", "properties": {}},
         }
-        mock_service.get_assistant_schemas.return_value = schemas
+        mock_assistant_service.get_assistant_schemas.return_value = schemas
 
         resp = client.get("/assistants/test-assistant-123/schemas")
 
@@ -465,7 +432,7 @@ class TestGetAssistantSchemas:
 class TestGetAssistantGraph:
     """Test GET /assistants/{assistant_id}/graph"""
 
-    def test_get_assistant_graph(self, client, mock_service):
+    def test_get_assistant_graph(self, client, mock_assistant_service):
         """Test getting assistant graph definition"""
         graph = {
             "nodes": ["start", "agent", "tools", "end"],
@@ -475,7 +442,7 @@ class TestGetAssistantGraph:
                 {"from": "tools", "to": "end"},
             ],
         }
-        mock_service.get_assistant_graph.return_value = graph
+        mock_assistant_service.get_assistant_graph.return_value = graph
 
         resp = client.get("/assistants/test-assistant-123/graph")
 
@@ -485,10 +452,10 @@ class TestGetAssistantGraph:
         assert "edges" in data
         assert len(data["nodes"]) == 4
 
-    def test_get_assistant_graph_xray_format(self, client, mock_service):
+    def test_get_assistant_graph_xray_format(self, client, mock_assistant_service):
         """Test getting graph in xray format"""
         graph = {"graph": {"nodes": [], "edges": []}}
-        mock_service.get_assistant_graph.return_value = graph
+        mock_assistant_service.get_assistant_graph.return_value = graph
 
         resp = client.get("/assistants/test-assistant-123/graph?xray=true")
 
@@ -500,7 +467,7 @@ class TestGetAssistantGraph:
 class TestGetAssistantSubgraphs:
     """Test GET /assistants/{assistant_id}/subgraphs"""
 
-    def test_get_assistant_subgraphs(self, client, mock_service):
+    def test_get_assistant_subgraphs(self, client, mock_assistant_service):
         """Test getting assistant subgraphs"""
         subgraphs = {
             "subgraph_1": {
@@ -512,7 +479,7 @@ class TestGetAssistantSubgraphs:
                 "edges": [{"from": "node_c", "to": "node_d"}],
             },
         }
-        mock_service.get_assistant_subgraphs.return_value = subgraphs
+        mock_assistant_service.get_assistant_subgraphs.return_value = subgraphs
 
         resp = client.get("/assistants/test-assistant-123/subgraphs")
 
@@ -522,10 +489,10 @@ class TestGetAssistantSubgraphs:
         assert "subgraph_2" in data
         assert len(data["subgraph_1"]["nodes"]) == 2
 
-    def test_get_assistant_subgraphs_recurse(self, client, mock_service):
+    def test_get_assistant_subgraphs_recurse(self, client, mock_assistant_service):
         """Test getting subgraphs with recursion"""
         subgraphs = {"nested": {"nodes": [], "edges": []}}
-        mock_service.get_assistant_subgraphs.return_value = subgraphs
+        mock_assistant_service.get_assistant_subgraphs.return_value = subgraphs
 
         resp = client.get("/assistants/test-assistant-123/subgraphs?recurse=true")
 
@@ -533,10 +500,10 @@ class TestGetAssistantSubgraphs:
         data = resp.json()
         assert isinstance(data, dict)
 
-    def test_get_assistant_subgraphs_namespace(self, client, mock_service):
+    def test_get_assistant_subgraphs_namespace(self, client, mock_assistant_service):
         """Test getting subgraphs for specific namespace"""
         subgraphs = {"ns1": {"nodes": [], "edges": []}}
-        mock_service.get_assistant_subgraphs.return_value = subgraphs
+        mock_assistant_service.get_assistant_subgraphs.return_value = subgraphs
 
         resp = client.get("/assistants/test-assistant-123/subgraphs?namespace=ns1")
 

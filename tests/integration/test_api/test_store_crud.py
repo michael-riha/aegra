@@ -1,31 +1,9 @@
 """Integration tests for store CRUD operations"""
 
-from unittest.mock import AsyncMock
-
 import pytest
 
 from tests.fixtures.clients import create_test_app, make_client
-
-
-class DummyStoreItem:
-    """Mock store item"""
-
-    def __init__(self, key, value, namespace):
-        self.key = key
-        self.value = value
-        self.namespace = namespace
-
-
-@pytest.fixture
-def mock_store():
-    """Mock LangGraph store"""
-    store = AsyncMock()
-    # Default empty responses
-    store.aget.return_value = None
-    store.aput.return_value = None
-    store.adelete.return_value = None
-    store.asearch.return_value = []
-    return store
+from tests.fixtures.test_helpers import DummyStoreItem
 
 
 @pytest.fixture

@@ -1,59 +1,54 @@
 """Integration tests for runs CRUD operations"""
 
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
-from agent_server.core.orm import get_session as core_get_session
 from tests.fixtures.clients import create_test_app, make_client
-from tests.fixtures.database import DummySessionBase, override_get_session_dep
+from tests.fixtures.database import DummySessionBase
+from tests.fixtures.session_fixtures import BasicSession, override_session_dependency
+from tests.fixtures.test_helpers import DummyRun, DummyThread
 
 
 def _thread_row(
     thread_id="test-thread-123", status="idle", metadata=None, user_id="test-user"
 ):
     """Create a mock thread ORM object"""
+    thread = DummyThread(thread_id, status, metadata, user_id)
 
-    class DummyThread:
-        def __init__(self):
-            self.thread_id = thread_id
-            self.status = status
-            self.metadata_json = metadata or {}
-            self.metadata = self.metadata_json
-            self.user_id = user_id
-            self.created_at = datetime.now(UTC)
-            self.updated_at = datetime.now(UTC)
+    # Add ORM-specific attributes
+    thread.metadata_json = metadata or {}
 
-            class _Col:
-                def __init__(self, name):
-                    self.name = name
+    class _Col:
+        def __init__(self, name):
+            self.name = name
 
-            class _T:
-                columns = [
-                    _Col("thread_id"),
-                    _Col("status"),
-                    _Col("metadata"),
-                    _Col("user_id"),
-                    _Col("created_at"),
-                    _Col("updated_at"),
-                ]
+    class _T:
+        columns = [
+            _Col("thread_id"),
+            _Col("status"),
+            _Col("metadata"),
+            _Col("user_id"),
+            _Col("created_at"),
+            _Col("updated_at"),
+        ]
 
-            self.__table__ = _T()
-
-    return DummyThread()
+    thread.__table__ = _T()
+    return thread
 
 
 def _assistant_row(
     assistant_id="test-assistant-123", graph_id="test-graph", user_id="test-user"
 ):
     """Create a mock assistant ORM object"""
+    from tests.fixtures.test_helpers import make_assistant
 
-    class DummyAssistant:
-        def __init__(self):
-            self.assistant_id = assistant_id
-            self.graph_id = graph_id
-            self.user_id = user_id
+    assistant = make_assistant(
+        assistant_id=assistant_id, graph_id=graph_id, user_id=user_id
+    )
 
-    return DummyAssistant()
+    # Add ORM-specific attributes
+    assistant.graph_id = graph_id
+
+    return assistant
 
 
 def _run_row(
@@ -67,50 +62,46 @@ def _run_row(
     output_data=None,
 ):
     """Create a mock run ORM object"""
+    run = DummyRun(
+        run_id,
+        thread_id,
+        assistant_id,
+        status,
+        user_id,
+        metadata,
+        input_data,
+        output_data,
+    )
 
-    class DummyRun:
-        def __init__(self):
-            self.run_id = run_id
-            self.thread_id = thread_id
-            self.assistant_id = assistant_id
-            self.status = status
-            self.user_id = user_id
-            self.metadata_json = metadata or {}
-            self.metadata = (
-                self.metadata_json
-            )  # Some endpoints access metadata directly
-            self.input = input_data or {"message": "test"}
-            self.output = output_data
-            self.error_message = None
-            self.config = {}
-            self.context = {}
-            self.created_at = datetime.now(UTC)
-            self.updated_at = datetime.now(UTC)
+    # Add ORM-specific attributes
+    run.metadata_json = metadata or {}
+    run.error_message = None
+    run.config = {}
+    run.context = {}
 
-            class _Col:
-                def __init__(self, name):
-                    self.name = name
+    class _Col:
+        def __init__(self, name):
+            self.name = name
 
-            class _T:
-                columns = [
-                    _Col("run_id"),
-                    _Col("thread_id"),
-                    _Col("assistant_id"),
-                    _Col("status"),
-                    _Col("user_id"),
-                    _Col("metadata"),
-                    _Col("input"),
-                    _Col("output"),
-                    _Col("error_message"),
-                    _Col("config"),
-                    _Col("context"),
-                    _Col("created_at"),
-                    _Col("updated_at"),
-                ]
+    class _T:
+        columns = [
+            _Col("run_id"),
+            _Col("thread_id"),
+            _Col("assistant_id"),
+            _Col("status"),
+            _Col("user_id"),
+            _Col("metadata"),
+            _Col("input"),
+            _Col("output"),
+            _Col("error_message"),
+            _Col("config"),
+            _Col("context"),
+            _Col("created_at"),
+            _Col("updated_at"),
+        ]
 
-            self.__table__ = _T()
-
-    return DummyRun()
+    run.__table__ = _T()
+    return run
 
 
 class TestCreateRun:
@@ -120,10 +111,9 @@ class TestCreateRun:
         """Test that run creation requires either input or command"""
         app = create_test_app(include_runs=True, include_threads=False)
 
-        class Session(DummySessionBase):
-            pass
+        # Use BasicSession from shared fixtures
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.post(
@@ -148,7 +138,7 @@ class TestGetRun:
             async def scalar(self, _stmt):
                 return run
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, Session)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs/test-run-123")
@@ -167,7 +157,7 @@ class TestGetRun:
             async def scalar(self, _stmt):
                 return None
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, Session)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs/nonexistent")
@@ -196,7 +186,7 @@ class TestListRuns:
 
                 return Result()
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, Session)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs")
@@ -219,7 +209,7 @@ class TestListRuns:
 
                 return Result()
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs")
@@ -242,7 +232,7 @@ class TestListRuns:
 
                 return Result()
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs?limit=2")
@@ -265,7 +255,7 @@ class TestListRuns:
 
                 return Result()
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs?offset=5")
@@ -282,10 +272,9 @@ class TestUpdateRun:
         """Test updating run requires valid payload"""
         app = create_test_app(include_runs=True, include_threads=False)
 
-        class Session(DummySessionBase):
-            pass
+        # Use BasicSession from shared fixtures
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         # Empty update should fail validation
@@ -308,7 +297,7 @@ class TestCancelRun:
             async def scalar(self, _stmt):
                 return None
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.post("/threads/test-thread-123/runs/nonexistent/cancel")
@@ -331,7 +320,7 @@ class TestCancelRun:
             async def commit(self):
                 pass
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, Session)
         client = make_client(app)
 
         with patch("agent_server.api.runs.streaming_service") as mock_streaming:
@@ -353,7 +342,7 @@ class TestDeleteRun:
             async def scalar(self, _stmt):
                 return None
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.delete("/threads/test-thread-123/runs/nonexistent")
@@ -370,7 +359,7 @@ class TestDeleteRun:
             async def scalar(self, _stmt):
                 return run
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.delete("/threads/test-thread-123/runs/test-run-123")
@@ -395,7 +384,7 @@ class TestDeleteRun:
             async def commit(self):
                 pass
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, Session)
         client = make_client(app)
 
         resp = client.delete("/threads/test-thread-123/runs/test-run-123")
@@ -414,7 +403,7 @@ class TestJoinRun:
             async def scalar(self, _stmt):
                 return None
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs/nonexistent/join")
@@ -431,7 +420,7 @@ class TestJoinRun:
             async def scalar(self, _stmt):
                 return run
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, Session)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs/test-run-123/join")
@@ -452,7 +441,7 @@ class TestStreamRun:
             async def scalar(self, _stmt):
                 return None
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs/nonexistent/stream")
@@ -467,10 +456,9 @@ class TestRunWithInput:
         """Test creating run with input passes validation"""
         app = create_test_app(include_runs=True, include_threads=False)
 
-        class Session(DummySessionBase):
-            pass
+        # Use BasicSession from shared fixtures
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.post(
@@ -505,7 +493,7 @@ class TestRunStatuses:
 
                 return Result()
 
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         client = make_client(app)
 
         resp = client.get("/threads/test-thread-123/runs?status=completed")

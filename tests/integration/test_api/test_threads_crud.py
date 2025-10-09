@@ -1,49 +1,40 @@
 """Integration tests for threads CRUD operations"""
 
-from datetime import UTC, datetime
-
 import pytest
 from fastapi.testclient import TestClient
 
 from agent_server.core.orm import get_session as core_get_session
 from tests.fixtures.clients import create_test_app, make_client
 from tests.fixtures.database import DummySessionBase, override_get_session_dep
+from tests.fixtures.session_fixtures import BasicSession, override_session_dependency
+from tests.fixtures.test_helpers import DummyRun, DummyThread
 
 
 def _thread_row(
     thread_id="test-thread-123", status="idle", metadata=None, user_id="test-user"
 ):
     """Create a mock thread ORM object"""
+    thread = DummyThread(thread_id, status, metadata, user_id)
 
-    class DummyThread:
-        def __init__(self):
-            self.thread_id = thread_id
-            self.status = status
-            self.metadata_json = metadata or {}
-            self.metadata = (
-                self.metadata_json
-            )  # Some endpoints access metadata directly
-            self.user_id = user_id
-            self.created_at = datetime.now(UTC)
-            self.updated_at = datetime.now(UTC)
+    # Add ORM-specific attributes
+    thread.metadata_json = metadata or {}
 
-            class _Col:
-                def __init__(self, name):
-                    self.name = name
+    class _Col:
+        def __init__(self, name):
+            self.name = name
 
-            class _T:
-                columns = [
-                    _Col("thread_id"),
-                    _Col("status"),
-                    _Col("metadata"),
-                    _Col("user_id"),
-                    _Col("created_at"),
-                    _Col("updated_at"),
-                ]
+    class _T:
+        columns = [
+            _Col("thread_id"),
+            _Col("status"),
+            _Col("metadata"),
+            _Col("user_id"),
+            _Col("created_at"),
+            _Col("updated_at"),
+        ]
 
-            self.__table__ = _T()
-
-    return DummyThread()
+    thread.__table__ = _T()
+    return thread
 
 
 def _run_row(
@@ -53,15 +44,7 @@ def _run_row(
     user_id="test-user",
 ):
     """Create a mock run ORM object"""
-
-    class DummyRun:
-        def __init__(self):
-            self.run_id = run_id
-            self.thread_id = thread_id
-            self.status = status
-            self.user_id = user_id
-
-    return DummyRun()
+    return DummyRun(run_id, thread_id, status, user_id)
 
 
 class TestCreateThread:
@@ -70,18 +53,7 @@ class TestCreateThread:
     @pytest.fixture
     def client(self) -> TestClient:
         app = create_test_app(include_runs=False, include_threads=True)
-
-        class Session(DummySessionBase):
-            def add(self, obj):
-                pass
-
-            async def commit(self):
-                pass
-
-            async def refresh(self, obj):
-                pass
-
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, BasicSession)
         return make_client(app)
 
     def test_create_thread_basic(self, client):
@@ -283,17 +255,9 @@ class TestSearchThreads:
             ),
         ]
 
-        class Session(DummySessionBase):
-            async def scalars(self, _stmt):
-                # In a real test, you'd filter based on _stmt
-                # For now, return all threads
-                class Result:
-                    def all(self):
-                        return threads
+        from tests.fixtures.session_fixtures import ThreadSession
 
-                return Result()
-
-        app.dependency_overrides[core_get_session] = override_get_session_dep(Session)
+        override_session_dependency(app, ThreadSession, threads=threads)
         return make_client(app)
 
     def test_search_threads_no_filters(self, client):
