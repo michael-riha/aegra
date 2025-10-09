@@ -1,10 +1,12 @@
-import os
 import json
+import os
 
 try:
     from langgraph_sdk import get_client
 except Exception as e:
-    raise RuntimeError("langgraph-sdk is required for E2E tests. Install via extras 'e2e' or add to your environment.") from e
+    raise RuntimeError(
+        "langgraph-sdk is required for E2E tests. Install via extras 'e2e' or add to your environment."
+    ) from e
 
 
 def elog(title: str, payload):

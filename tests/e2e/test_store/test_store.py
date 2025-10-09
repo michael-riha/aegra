@@ -1,5 +1,6 @@
 import pytest
-from tests.e2e._utils import get_e2e_client, elog
+
+from tests.e2e._utils import elog, get_e2e_client
 
 
 @pytest.mark.e2e
@@ -21,7 +22,9 @@ async def test_store_endpoints_via_sdk():
     elog("store.get_item", got)
     assert got["key"] == key
     assert got["value"] == value
-    assert got.get("namespace") in (ns, ["users"]) or isinstance(got.get("namespace"), list)
+    assert got.get("namespace") in (ns, ["users"]) or isinstance(
+        got.get("namespace"), list
+    )
 
     # Search by namespace prefix
     search = await client.store.search_items(["notes"], limit=10)
@@ -35,7 +38,5 @@ async def test_store_endpoints_via_sdk():
     elog("store.delete_item", {"namespace": ns, "key": key})
 
     # Ensure deleted
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 - SDK doesn't expose specific exception type
         await client.store.get_item(ns, key=key)
-
-

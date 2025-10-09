@@ -1,13 +1,14 @@
 import json
 import logging
-from starlette.types import ASGIApp, Receive, Send, Scope
+
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 
 
 class DoubleEncodedJSONMiddleware:
     """Middleware to handle double-encoded JSON payloads from frontend.
-    
+
     Some frontend clients may send JSON that's been stringified twice,
     resulting in payloads like '"{\"key\":\"value\"}"' instead of '{"key":"value"}'.
     This middleware detects and corrects such cases.
@@ -16,7 +17,7 @@ class DoubleEncodedJSONMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -28,7 +29,7 @@ class DoubleEncodedJSONMiddleware:
         if method in ["POST", "PUT", "PATCH"] and content_type:
             body_parts = []
 
-            async def receive_wrapper():
+            async def receive_wrapper() -> dict:
                 message = await receive()
                 if message["type"] == "http.request":
                     body_parts.append(message.get("body", b""))
@@ -46,20 +47,29 @@ class DoubleEncodedJSONMiddleware:
 
                                 new_body = json.dumps(parsed).encode("utf-8")
 
-                                if b"content-type" in headers and content_type != "application/json":
+                                if (
+                                    b"content-type" in headers
+                                    and content_type != "application/json"
+                                ):
                                     new_headers = []
                                     for name, value in scope.get("headers", []):
                                         if name != b"content-type":
                                             new_headers.append((name, value))
-                                    new_headers.append((b"content-type", b"application/json"))
+                                    new_headers.append(
+                                        (b"content-type", b"application/json")
+                                    )
                                     scope["headers"] = new_headers
 
                                 return {
                                     "type": "http.request",
                                     "body": new_body,
-                                    "more_body": False
+                                    "more_body": False,
                                 }
-                            except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
+                            except (
+                                json.JSONDecodeError,
+                                ValueError,
+                                UnicodeDecodeError,
+                            ):
                                 pass
 
                 return message

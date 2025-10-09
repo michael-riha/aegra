@@ -1,5 +1,6 @@
 import pytest
-from tests.e2e._utils import get_e2e_client, elog
+
+from tests.e2e._utils import elog, get_e2e_client
 
 
 @pytest.mark.e2e
@@ -59,18 +60,24 @@ async def test_background_run_and_join_e2e():
         stream_mode=["messages-tuple", "values"],  # accept alias, normalized on server
     ):
         event_count += 1
-        first_session_counters[chunk.event] = first_session_counters.get(chunk.event, 0) + 1
+        first_session_counters[chunk.event] = (
+            first_session_counters.get(chunk.event, 0) + 1
+        )
 
         # Print/accumulate message content as it streams
-        if chunk.event == "messages":
-            if hasattr(chunk, "data") and chunk.data:
-                if isinstance(chunk.data, list) and len(chunk.data) >= 1:
-                    message_chunk = chunk.data[0]
-                    content = getattr(message_chunk, "content", None)
-                    if content is None and isinstance(message_chunk, dict):
-                        content = message_chunk.get("content")
-                    if content:
-                        content_before_drop += content
+        if (
+            chunk.event == "messages"
+            and hasattr(chunk, "data")
+            and chunk.data
+            and isinstance(chunk.data, list)
+            and len(chunk.data) >= 1
+        ):
+            message_chunk = chunk.data[0]
+            content = getattr(message_chunk, "content", None)
+            if content is None and isinstance(message_chunk, dict):
+                content = message_chunk.get("content")
+            if content:
+                content_before_drop += content
 
         # Create a simple mock event id for demonstration and simulate drop
         current_event_id = f"mock_event_{event_count}"
@@ -91,6 +98,7 @@ async def test_background_run_and_join_e2e():
     # Simulate reconnection delay
     # (Keep short to not slow the test; the real script used a longer sleep)
     import asyncio as _asyncio
+
     await _asyncio.sleep(0.25)
 
     # Rejoin from last_event_id (may be None if ended early)
@@ -106,18 +114,24 @@ async def test_background_run_and_join_e2e():
         last_event_id=last_event_id,
     ):
         rejoin_event_count += 1
-        second_session_counters[chunk.event] = second_session_counters.get(chunk.event, 0) + 1
+        second_session_counters[chunk.event] = (
+            second_session_counters.get(chunk.event, 0) + 1
+        )
 
         if chunk.event == "messages":
             rejoin_message_count += 1
-            if hasattr(chunk, "data") and chunk.data:
-                if isinstance(chunk.data, list) and len(chunk.data) >= 1:
-                    message_chunk = chunk.data[0]
-                    content = getattr(message_chunk, "content", None)
-                    if content is None and isinstance(message_chunk, dict):
-                        content = message_chunk.get("content")
-                    if content:
-                        content_after_rejoin += content
+            if (
+                hasattr(chunk, "data")
+                and chunk.data
+                and isinstance(chunk.data, list)
+                and len(chunk.data) >= 1
+            ):
+                message_chunk = chunk.data[0]
+                content = getattr(message_chunk, "content", None)
+                if content is None and isinstance(message_chunk, dict):
+                    content = message_chunk.get("content")
+                if content:
+                    content_after_rejoin += content
 
         if chunk.event == "end":
             elog("Stream completed after rejoin", {})
@@ -126,7 +140,14 @@ async def test_background_run_and_join_e2e():
     # Basic validations similar to the standalone script intent
     combined_content = content_before_drop + content_after_rejoin
     elog("Rejoin session counters", second_session_counters)
-    elog("Content lengths", {"before": len(content_before_drop), "after": len(content_after_rejoin), "combined": len(combined_content)})
+    elog(
+        "Content lengths",
+        {
+            "before": len(content_before_drop),
+            "after": len(content_after_rejoin),
+            "combined": len(combined_content),
+        },
+    )
 
     # Join run and verify final state
     final_state = await client.runs.join(thread_id, run_id)

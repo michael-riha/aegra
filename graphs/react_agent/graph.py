@@ -4,7 +4,7 @@ Works with a chat model with tool calling support.
 """
 
 from datetime import UTC, datetime
-from typing import Dict, List, Literal, cast
+from typing import Literal, cast
 
 from langchain_core.messages import AIMessage
 from langgraph.graph import StateGraph
@@ -21,7 +21,7 @@ from react_agent.utils import load_chat_model
 
 async def call_model(
     state: State, runtime: Runtime[Context]
-) -> Dict[str, List[AIMessage]]:
+) -> dict[str, list[AIMessage]]:
     """Call the LLM powering our "agent".
 
     This function prepares the prompt, initializes the model, and processes the response.
@@ -43,7 +43,7 @@ async def call_model(
 
     # Get the model's response
     response = cast(
-        AIMessage,
+        "AIMessage",
         await model.ainvoke(
             [{"role": "system", "content": system_message}, *state.messages]
         ),

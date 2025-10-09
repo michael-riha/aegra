@@ -1,5 +1,6 @@
 import pytest
-from tests.e2e._utils import get_e2e_client, elog
+
+from tests.e2e._utils import elog, get_e2e_client
 
 
 @pytest.mark.e2e
@@ -15,7 +16,7 @@ async def test_get_assistant_graph():
         name="Test Graph Assistant",
         description="Assistant for testing graph endpoint",
         graph_id="agent",
-        if_exists="do_nothing"
+        if_exists="do_nothing",
     )
 
     try:
@@ -36,8 +37,8 @@ async def test_get_assistant_graph():
             {
                 "assistant_id": assistant["assistant_id"],
                 "node_count": len(graph["nodes"]),
-                "edge_count": len(graph["edges"])
-            }
+                "edge_count": len(graph["edges"]),
+            },
         )
 
     finally:
@@ -58,14 +59,13 @@ async def test_get_assistant_graph_with_xray_boolean():
         name="Test Graph XRay Assistant",
         description="Assistant for testing graph endpoint with xray",
         graph_id="agent",
-        if_exists="do_nothing"
+        if_exists="do_nothing",
     )
 
     try:
         # 2. Get the graph structure with xray=True
         graph = await client.assistants.get_graph(
-            assistant_id=assistant["assistant_id"],
-            xray=True
+            assistant_id=assistant["assistant_id"], xray=True
         )
 
         # 3. Verify graph structure
@@ -79,8 +79,8 @@ async def test_get_assistant_graph_with_xray_boolean():
             {
                 "assistant_id": assistant["assistant_id"],
                 "node_count": len(graph["nodes"]),
-                "edge_count": len(graph["edges"])
-            }
+                "edge_count": len(graph["edges"]),
+            },
         )
 
     finally:
@@ -101,14 +101,13 @@ async def test_get_assistant_graph_with_xray_integer():
         name="Test Graph XRay Depth Assistant",
         description="Assistant for testing graph endpoint with xray depth",
         graph_id="agent",
-        if_exists="do_nothing"
+        if_exists="do_nothing",
     )
 
     try:
         # 2. Get the graph structure with xray=1 (depth of 1)
         graph = await client.assistants.get_graph(
-            assistant_id=assistant["assistant_id"],
-            xray=1
+            assistant_id=assistant["assistant_id"], xray=1
         )
 
         # 3. Verify graph structure
@@ -123,8 +122,8 @@ async def test_get_assistant_graph_with_xray_integer():
                 "assistant_id": assistant["assistant_id"],
                 "xray_depth": 1,
                 "node_count": len(graph["nodes"]),
-                "edge_count": len(graph["edges"])
-            }
+                "edge_count": len(graph["edges"]),
+            },
         )
 
     finally:
@@ -184,8 +183,8 @@ async def test_get_assistant_subgraphs():
             {
                 "assistant_id": assistant["assistant_id"],
                 "subgraph_count": len(subgraphs),
-                "subgraph_names": list(subgraphs.keys())
-            }
+                "subgraph_names": list(subgraphs.keys()),
+            },
         )
 
     finally:
@@ -213,8 +212,7 @@ async def test_get_assistant_subgraphs_with_recurse():
     try:
         # 2. Get the subgraphs recursively
         subgraphs = await client.assistants.get_subgraphs(
-            assistant_id=assistant["assistant_id"],
-            recurse=True
+            assistant_id=assistant["assistant_id"], recurse=True
         )
 
         # 3. Verify subgraphs structure
@@ -227,8 +225,8 @@ async def test_get_assistant_subgraphs_with_recurse():
                 "assistant_id": assistant["assistant_id"],
                 "subgraph_count": len(subgraphs),
                 "subgraph_names": list(subgraphs.keys()),
-                "recurse": True
-            }
+                "recurse": True,
+            },
         )
 
     finally:
@@ -266,14 +264,14 @@ async def test_system_assistant_graph_access():
 
     # Get the system assistant (should be created on startup)
     assistants = await client.assistants.search()
-    
+
     # Find a system assistant (created with graph_id)
     system_assistant = None
     for assistant in assistants:
         if assistant.get("user_id") == "system":
             system_assistant = assistant
             break
-    
+
     if system_assistant:
         # Try to get the graph for system assistant
         graph = await client.assistants.get_graph(
@@ -288,8 +286,8 @@ async def test_system_assistant_graph_access():
             "System assistant graph accessed successfully",
             {
                 "assistant_id": system_assistant["assistant_id"],
-                "node_count": len(graph["nodes"])
-            }
+                "node_count": len(graph["nodes"]),
+            },
         )
     else:
         elog("No system assistant found, skipping test", {})

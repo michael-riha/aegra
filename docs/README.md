@@ -7,6 +7,7 @@ Welcome to the Aegra documentation! Here you'll find everything you need to get 
 ### For Developers
 
 - **[Developer Guide](developer-guide.md)** - Complete setup, migrations, and development workflow
+- **[Code Quality Guide](code-quality.md)** - Quick reference for linting, formatting, and commit standards
 - **[Migration Cheatsheet](migration-cheatsheet.md)** - Quick reference for common commands
 
 ### For Users

@@ -1,23 +1,22 @@
 """A minimal graph that delegates to `react_agent.graph` as a subgraph node."""
 
+from datetime import UTC, datetime
+from typing import cast
+
+from langchain_core.messages import AIMessage
 from langgraph.graph import StateGraph
 from langgraph.runtime import Runtime
-from langchain_core.messages import AIMessage, HumanMessage
-from typing import Dict, List, Literal, cast
-from datetime import datetime, UTC
-from react_agent.utils import load_chat_model
-
 from react_agent import graph as react_graph
 from react_agent.context import Context
 from react_agent.state import InputState, State
-
+from react_agent.utils import load_chat_model
 
 builder = StateGraph(State, input_schema=InputState, context_schema=Context)
 
 
 async def no_stream(
     state: State, runtime: Runtime[Context]
-) -> Dict[str, List[AIMessage]]:
+) -> dict[str, list[AIMessage]]:
     """Call the LLM powering our "agent" with the langsmith:nostream tag.
 
     This function prepares the prompt, initializes the model with the langsmith:nostream tag, and processes the response.
@@ -41,7 +40,7 @@ async def no_stream(
 
     # Get the model's response
     response = cast(
-        AIMessage,
+        "AIMessage",
         await model.ainvoke(
             [{"role": "system", "content": system_message}, *state.messages]
         ),

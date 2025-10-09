@@ -1,17 +1,17 @@
 """Health check endpoints"""
-import asyncio
-import os
+
+import contextlib
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
-
-from .database import DatabaseManager
 
 router = APIRouter()
 
 
 class HealthResponse(BaseModel):
     """Health check response model"""
+
     status: str
     database: str
     langgraph_checkpointer: str
@@ -20,6 +20,7 @@ class HealthResponse(BaseModel):
 
 class InfoResponse(BaseModel):
     """Info endpoint response model"""
+
     name: str
     version: str
     description: str
@@ -27,18 +28,18 @@ class InfoResponse(BaseModel):
 
 
 @router.get("/info", response_model=InfoResponse)
-async def info():
+async def info() -> InfoResponse:
     """Simple service information endpoint"""
     return InfoResponse(
         name="Aegra",
         version="0.1.0",
         description="Production-ready Agent Protocol server built on LangGraph",
-        status="running"
+        status="running",
     )
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check():
+async def health_check() -> dict[str, str]:
     """Comprehensive health check endpoint"""
     # Import here to avoid circular dependency
     from .database import db_manager
@@ -67,11 +68,10 @@ async def health_check():
     try:
         checkpointer = await db_manager.get_checkpointer()
         # probe - will raise if connection is bad; tuple may not exist which is fine
-        try:
-            await checkpointer.aget_tuple({"configurable": {"thread_id": "health-check"}})
-        except Exception:
-            # Absence of data is not an error for health; connectivity worked
-            pass
+        with contextlib.suppress(Exception):
+            await checkpointer.aget_tuple(
+                {"configurable": {"thread_id": "health-check"}}
+            )
         health_status["langgraph_checkpointer"] = "connected"
     except Exception as e:
         health_status["langgraph_checkpointer"] = f"error: {str(e)}"
@@ -80,11 +80,8 @@ async def health_check():
     # LangGraph store (lazy-init)
     try:
         store = await db_manager.get_store()
-        try:
+        with contextlib.suppress(Exception):
             await store.aget(("health",), "check")
-        except Exception:
-            # Key absence is OK; connectivity confirmed
-            pass
         health_status["langgraph_store"] = "connected"
     except Exception as e:
         health_status["langgraph_store"] = f"error: {str(e)}"
@@ -97,39 +94,45 @@ async def health_check():
 
 
 @router.get("/ready")
-async def readiness_check():
+async def readiness_check() -> dict[str, str]:
     """Kubernetes readiness probe endpoint"""
     from .database import db_manager
 
     # Engine must exist and respond to a trivial query
     if not db_manager.engine:
-        raise HTTPException(status_code=503, detail="Service not ready - database engine not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Service not ready - database engine not initialized",
+        )
     try:
         async with db_manager.engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Service not ready - database error: {str(e)}")
+        raise HTTPException(
+            status_code=503, detail=f"Service not ready - database error: {str(e)}"
+        ) from e
 
     # Check that LangGraph components can be obtained (lazy init) and respond
     try:
         checkpointer = await db_manager.get_checkpointer()
         store = await db_manager.get_store()
         # lightweight probes
-        try:
-            await checkpointer.aget_tuple({"configurable": {"thread_id": "ready-check"}})
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
+            await checkpointer.aget_tuple(
+                {"configurable": {"thread_id": "ready-check"}}
+            )
+        with contextlib.suppress(Exception):
             await store.aget(("ready",), "check")
-        except Exception:
-            pass
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Service not ready - components unavailable: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Service not ready - components unavailable: {str(e)}",
+        ) from e
 
     return {"status": "ready"}
 
 
 @router.get("/live")
-async def liveness_check():
+async def liveness_check() -> dict[str, str]:
     """Kubernetes liveness probe endpoint"""
     return {"status": "alive"}

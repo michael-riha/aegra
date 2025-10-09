@@ -1,10 +1,11 @@
 """Database fixtures for tests"""
-from typing import Callable, AsyncIterator
+
+from collections.abc import AsyncIterator, Callable
 
 
 class DummySessionBase:
     """Minimal emulation of SQLAlchemy AsyncSession for testing
-    
+
     Override scalar/scalars/commit/refresh in subclasses/fixtures to return
     appropriate rows for a test. By default, returns empty data.
     """
@@ -32,11 +33,16 @@ class DummySessionBase:
         class Result:
             def all(self_inner):
                 return []
+
         return Result()
 
 
-def override_get_session_dep(session_factory: Callable[[], DummySessionBase]) -> Callable[[], AsyncIterator[DummySessionBase]]:
+def override_get_session_dep(
+    session_factory: Callable[[], DummySessionBase],
+) -> Callable[[], AsyncIterator[DummySessionBase]]:
     """Create a dependency override for get_session"""
+
     async def _dep():
         yield session_factory()
+
     return _dep

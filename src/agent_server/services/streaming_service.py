@@ -1,31 +1,33 @@
 """Streaming service for orchestrating SSE streaming"""
+
 import asyncio
 import logging
-from typing import Dict, AsyncIterator, Optional, Any
+from collections.abc import AsyncIterator
+from typing import Any
 
+from ..core.sse import create_error_event, create_metadata_event
 from ..models import Run
-from ..core.sse import (
-    create_metadata_event, create_error_event
-)
-from ..utils import generate_event_id, extract_event_sequence
-from .event_store import event_store, store_sse_event
+from ..utils import extract_event_sequence, generate_event_id
 from .broker import broker_manager
 from .event_converter import EventConverter
+from .event_store import event_store, store_sse_event
 
 logger = logging.getLogger(__name__)
 
 
 class StreamingService:
     """Service to handle SSE streaming orchestration with LangGraph compatibility"""
-    
+
     def __init__(self):
-        self.event_counters: Dict[str, int] = {}
+        self.event_counters: dict[str, int] = {}
         self.event_converter = EventConverter()
-    
-    def _process_interrupt_updates(self, raw_event: Any, only_interrupt_updates: bool) -> tuple[Any, bool]:
+
+    def _process_interrupt_updates(
+        self, raw_event: Any, only_interrupt_updates: bool
+    ) -> tuple[Any, bool]:
         """Process interrupt updates logic - returns (processed_event, should_skip)"""
         if (
-            isinstance(raw_event, tuple) 
+            isinstance(raw_event, tuple)
             and len(raw_event) >= 2
             and raw_event[0] == "updates"
             and only_interrupt_updates
@@ -55,25 +57,40 @@ class StreamingService:
         except Exception:
             pass  # Ignore format issues
         return self.event_counters.get(run_id, 0)
-    
-    async def put_to_broker(self, run_id: str, event_id: str, raw_event: Any, only_interrupt_updates: bool = False):
+
+    async def put_to_broker(
+        self,
+        run_id: str,
+        event_id: str,
+        raw_event: Any,
+        only_interrupt_updates: bool = False,
+    ):
         """Put an event into the run's broker queue for live consumers"""
         broker = broker_manager.get_or_create_broker(run_id)
         self._next_event_counter(run_id, event_id)
-        
-        processed_event, should_skip = self._process_interrupt_updates(raw_event, only_interrupt_updates)
+
+        processed_event, should_skip = self._process_interrupt_updates(
+            raw_event, only_interrupt_updates
+        )
         if should_skip:
             return
-            
+
         await broker.put(event_id, processed_event)
-    
-    
-    async def store_event_from_raw(self, run_id: str, event_id: str, raw_event: Any, only_interrupt_updates: bool = False):
+
+    async def store_event_from_raw(
+        self,
+        run_id: str,
+        event_id: str,
+        raw_event: Any,
+        only_interrupt_updates: bool = False,
+    ):
         """Convert raw event to stored format and store it"""
-        processed_event, should_skip = self._process_interrupt_updates(raw_event, only_interrupt_updates)
+        processed_event, should_skip = self._process_interrupt_updates(
+            raw_event, only_interrupt_updates
+        )
         if should_skip:
             return
-        
+
         # Parse the processed event
         node_path = None
         stream_mode_label = None
@@ -96,19 +113,16 @@ class StreamingService:
                 "messages",
                 {
                     "type": "messages_stream",
-                    "message_chunk": event_payload[0] if isinstance(event_payload, tuple) and len(event_payload) >= 1 else event_payload,
-                    "metadata": event_payload[1] if isinstance(event_payload, tuple) and len(event_payload) >= 2 else None,
+                    "message_chunk": event_payload[0]
+                    if isinstance(event_payload, tuple) and len(event_payload) >= 1
+                    else event_payload,
+                    "metadata": event_payload[1]
+                    if isinstance(event_payload, tuple) and len(event_payload) >= 2
+                    else None,
                     "node_path": node_path,
                 },
             )
-        elif stream_mode_label == "values":
-            await store_sse_event(
-                run_id,
-                event_id,
-                "values",
-                {"type": "execution_values", "chunk": event_payload},
-            )
-        elif stream_mode_label == "updates":
+        elif stream_mode_label == "values" or stream_mode_label == "updates":
             await store_sse_event(
                 run_id,
                 event_id,
@@ -120,42 +134,48 @@ class StreamingService:
                 run_id,
                 event_id,
                 "end",
-                {"type": "run_complete", "status": event_payload.get("status", "completed"), "final_output": event_payload.get("final_output")},
+                {
+                    "type": "run_complete",
+                    "status": event_payload.get("status", "completed"),
+                    "final_output": event_payload.get("final_output"),
+                },
             )
         # Add other stream modes as needed
-    
+
     async def signal_run_cancelled(self, run_id: str):
         """Signal that a run was cancelled"""
         counter = self.event_counters.get(run_id, 0) + 1
         self.event_counters[run_id] = counter
         event_id = generate_event_id(run_id, counter)
-        
+
         broker = broker_manager.get_or_create_broker(run_id)
         if broker:
             await broker.put(event_id, ("end", {"status": "cancelled"}))
-        
+
         broker_manager.cleanup_broker(run_id)
-    
+
     async def signal_run_error(self, run_id: str, error_message: str):
         """Signal that a run encountered an error"""
         counter = self.event_counters.get(run_id, 0) + 1
         self.event_counters[run_id] = counter
         event_id = generate_event_id(run_id, counter)
-        
+
         broker = broker_manager.get_or_create_broker(run_id)
         if broker:
-            await broker.put(event_id, ("end", {"status": "failed", "error": error_message}))
-        
+            await broker.put(
+                event_id, ("end", {"status": "failed", "error": error_message})
+            )
+
         broker_manager.cleanup_broker(run_id)
-    
+
     def _extract_event_sequence(self, event_id: str) -> int:
         """Extract numeric sequence from event_id format: {run_id}_event_{sequence}"""
         return extract_event_sequence(event_id)
-    
+
     async def stream_run_execution(
-        self, 
-        run: Run, 
-        last_event_id: Optional[str] = None,
+        self,
+        run: Run,
+        last_event_id: str | None = None,
         cancel_on_disconnect: bool = False,
     ) -> AsyncIterator[str]:
         """Stream run execution with unified producer-consumer pattern"""
@@ -166,19 +186,19 @@ class StreamingService:
                 event_id = generate_event_id(run_id, 0)
                 metadata_event = create_metadata_event(run_id, event_id)
                 yield metadata_event
-            
+
             # Replay stored events first
             last_sent_sequence = 0
             if last_event_id:
                 last_sent_sequence = self._extract_event_sequence(last_event_id)
-            
+
             async for sse_event in self._replay_stored_events(run_id, last_event_id):
                 yield sse_event
-            
+
             # Stream live events if run is still active
             async for sse_event in self._stream_live_events(run, last_sent_sequence):
                 yield sse_event
-                
+
         except asyncio.CancelledError:
             logger.debug(f"Stream cancelled for run {run_id}")
             if cancel_on_disconnect:
@@ -187,8 +207,10 @@ class StreamingService:
         except Exception as e:
             logger.error(f"Error in stream_run_execution for run {run_id}: {e}")
             yield create_error_event(str(e))
-    
-    async def _replay_stored_events(self, run_id: str, last_event_id: Optional[str]) -> AsyncIterator[str]:
+
+    async def _replay_stored_events(
+        self, run_id: str, last_event_id: str | None
+    ) -> AsyncIterator[str]:
         """Replay stored events"""
         if last_event_id:
             stored_events = await event_store.get_events_since(run_id, last_event_id)
@@ -199,16 +221,21 @@ class StreamingService:
             sse_event = self._stored_event_to_sse(run_id, ev)
             if sse_event:
                 yield sse_event
-    
-    async def _stream_live_events(self, run: Run, last_sent_sequence: int) -> AsyncIterator[str]:
+
+    async def _stream_live_events(
+        self, run: Run, last_sent_sequence: int
+    ) -> AsyncIterator[str]:
         """Stream live events from broker"""
         run_id = run.run_id
         broker = broker_manager.get_or_create_broker(run_id)
-        
+
         # If run finished and broker is done, nothing to stream
-        if run.status in ["completed", "failed", "cancelled", "interrupted"] and broker.is_finished():
+        if (
+            run.status in ["completed", "failed", "cancelled", "interrupted"]
+            and broker.is_finished()
+        ):
             return
-        
+
         # Stream live events
         if broker:
             async for event_id, raw_event in broker.aiter():
@@ -221,21 +248,24 @@ class StreamingService:
                 if sse_event:
                     yield sse_event
                     last_sent_sequence = current_sequence
-    
+
     def _cancel_background_task(self, run_id: str):
         """Cancel background task on disconnect"""
         try:
             from ..api.runs import active_runs
+
             task = active_runs.get(run_id)
             if task and not task.done():
                 task.cancel()
         except Exception as e:
-            logger.warning(f"Failed to cancel background task for run {run_id} on disconnect: {e}")
-    
-    async def _convert_raw_to_sse(self, event_id: str, raw_event: Any) -> Optional[str]:
+            logger.warning(
+                f"Failed to cancel background task for run {run_id} on disconnect: {e}"
+            )
+
+    async def _convert_raw_to_sse(self, event_id: str, raw_event: Any) -> str | None:
         """Convert a raw event from broker to SSE format"""
         return self.event_converter.convert_raw_to_sse(event_id, raw_event)
-    
+
     async def interrupt_run(self, run_id: str) -> bool:
         """Interrupt a running execution"""
         try:
@@ -245,7 +275,7 @@ class StreamingService:
         except Exception as e:
             logger.error(f"Error interrupting run {run_id}: {e}")
             return False
-    
+
     async def cancel_run(self, run_id: str) -> bool:
         """Cancel a pending or running execution"""
         try:
@@ -255,26 +285,29 @@ class StreamingService:
         except Exception as e:
             logger.error(f"Error cancelling run {run_id}: {e}")
             return False
-    
-    async def _update_run_status(self, run_id: str, status: str, output: Any = None, error: str = None):
+
+    async def _update_run_status(
+        self, run_id: str, status: str, output: Any = None, error: str = None
+    ):
         """Update run status in database using the shared updater."""
         try:
             # Lazy import to avoid cycles
             from ..api.runs import update_run_status
+
             await update_run_status(run_id, status, output, error)
         except Exception as e:
             logger.error(f"Error updating run status for {run_id}: {e}")
-    
+
     def is_run_streaming(self, run_id: str) -> bool:
         """Check if run is currently active (has a broker)"""
         broker = broker_manager.get_broker(run_id)
         return broker is not None and not broker.is_finished()
-    
+
     async def cleanup_run(self, run_id: str):
         """Clean up streaming resources for a run"""
         broker_manager.cleanup_broker(run_id)
 
-    def _stored_event_to_sse(self, run_id: str, ev) -> Optional[str]:
+    def _stored_event_to_sse(self, run_id: str, ev) -> str | None:
         """Convert stored event object to SSE string"""
         return self.event_converter.convert_stored_to_sse(ev, run_id)
 

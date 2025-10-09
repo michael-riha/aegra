@@ -1,5 +1,6 @@
 import pytest
-from tests.e2e._utils import get_e2e_client, elog
+
+from tests.e2e._utils import elog, get_e2e_client
 
 
 @pytest.mark.e2e
@@ -7,10 +8,10 @@ from tests.e2e._utils import get_e2e_client, elog
 async def test_run_join_returns_actual_output():
     """
     Test that the join endpoint returns actual run output instead of empty dict.
-    
+
     This test validates the fix where final_output was being captured correctly
     but then ignored when saving to database (hardcoded as output={}).
-    
+
     Before fix: join always returned {}
     After fix: join returns the actual graph execution output
     """
@@ -46,26 +47,41 @@ async def test_run_join_returns_actual_output():
 
     # Verify output is not empty (the main fix)
     assert final_output is not None, "Final output should not be None"
-    assert final_output != {}, "Final output should not be empty dict - this was the bug!"
-    
+    assert final_output != {}, (
+        "Final output should not be empty dict - this was the bug!"
+    )
+
     # The output should be a dict containing the final state
-    assert isinstance(final_output, dict), f"Expected dict output, got {type(final_output)}"
-    
+    assert isinstance(final_output, dict), (
+        f"Expected dict output, got {type(final_output)}"
+    )
+
     # Verify the run details also show the correct output
     run_details = await client.runs.get(thread_id, run_id)
     elog("Runs.get details", run_details)
-    
-    assert run_details["status"] == "completed", f"Expected completed status, got {run_details['status']}"
-    assert run_details["output"] is not None, "Run output should not be None in database"
-    assert run_details["output"] != {}, "Run output should not be empty dict in database"
-    
+
+    assert run_details["status"] == "completed", (
+        f"Expected completed status, got {run_details['status']}"
+    )
+    assert run_details["output"] is not None, (
+        "Run output should not be None in database"
+    )
+    assert run_details["output"] != {}, (
+        "Run output should not be empty dict in database"
+    )
+
     # Verify join and get return the same output
-    assert final_output == run_details["output"], "Join output should match stored run output"
+    assert final_output == run_details["output"], (
+        "Join output should match stored run output"
+    )
 
-    elog("✅ Test passed - join now returns actual output instead of empty dict!", {
-        "output_type": type(final_output).__name__,
-        "output_empty": final_output == {},
-        "output_keys": list(final_output.keys()) if isinstance(final_output, dict) else "not_dict"
-    })
-
-
+    elog(
+        "✅ Test passed - join now returns actual output instead of empty dict!",
+        {
+            "output_type": type(final_output).__name__,
+            "output_empty": final_output == {},
+            "output_keys": list(final_output.keys())
+            if isinstance(final_output, dict)
+            else "not_dict",
+        },
+    )
