@@ -92,6 +92,7 @@ class LangGraphService:
         from sqlalchemy import select
 
         from ..core.orm import Assistant as AssistantORM
+        from ..core.orm import AssistantVersion as AssistantVersionORM
         from ..core.orm import get_session
 
         # Fixed namespace used to derive assistant IDs from graph IDs
@@ -116,6 +117,17 @@ class LangGraphService:
                         graph_id=graph_id,
                         config={},
                         user_id="system",
+                        metadata_dict={"created_by": "system"},
+                    )
+                )
+                session.add(
+                    AssistantVersionORM(
+                        assistant_id=assistant_id,
+                        version=1,
+                        name=graph_id,
+                        description=f"Default assistant for graph '{graph_id}'",
+                        graph_id=graph_id,
+                        metadata_dict={"created_by": "system"},
                     )
                 )
             await session.commit()

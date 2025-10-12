@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import copy
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -104,6 +105,15 @@ async def update_thread_metadata(
     await session.commit()
 
 
+def _merge_jsonb(*objects: dict) -> dict:
+    """Mimics PostgreSQL's JSONB merge behavior"""
+    result = {}
+    for obj in objects:
+        if obj is not None:
+            result.update(copy.deepcopy(obj))
+    return result
+
+
 @router.post("/threads/{thread_id}/runs", response_model=Run)
 async def create_run(
     thread_id: str,
@@ -145,6 +155,19 @@ async def create_run(
 
     config = request.config
     context = request.context
+    configurable = config.get("configurable", {})
+
+    if config.get("configurable") and context:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot specify both configurable and context. Prefer setting context alone. Context was introduced in LangGraph 0.6.0 and is the long term planned replacement for configurable.",
+        )
+
+    if context:
+        configurable = context.copy()
+        config["configurable"] = configurable
+    else:
+        context = configurable.copy()
 
     assistant_stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == resolved_assistant_id,
@@ -152,6 +175,9 @@ async def create_run(
     assistant = await session.scalar(assistant_stmt)
     if not assistant:
         raise HTTPException(404, f"Assistant '{request.assistant_id}' not found")
+
+    config = _merge_jsonb(config, assistant.config)
+    context = _merge_jsonb(context, assistant.context)
 
     # Validate the assistant's graph exists
     available_graphs = langgraph_service.list_graphs()
@@ -268,6 +294,19 @@ async def create_and_stream_run(
 
     config = request.config
     context = request.context
+    configurable = config.get("configurable", {})
+
+    if config.get("configurable") and context:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot specify both configurable and context. Prefer setting context alone. Context was introduced in LangGraph 0.6.0 and is the long term planned replacement for configurable.",
+        )
+
+    if context:
+        configurable = context.copy()
+        config["configurable"] = configurable
+    else:
+        context = configurable.copy()
 
     assistant_stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == resolved_assistant_id,
@@ -275,6 +314,9 @@ async def create_and_stream_run(
     assistant = await session.scalar(assistant_stmt)
     if not assistant:
         raise HTTPException(404, f"Assistant '{request.assistant_id}' not found")
+
+    config = _merge_jsonb(config, assistant.config)
+    context = _merge_jsonb(context, assistant.context)
 
     # Validate the assistant's graph exists
     available_graphs = langgraph_service.list_graphs()
