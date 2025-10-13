@@ -72,7 +72,7 @@ class StructLogMiddleware:
                 "method": http_method,
                 "version": http_version,
             }
-            if os.getenv("LOG_VERBOSITY", "low").lower() == "high":
+            if os.getenv("LOG_VERBOSITY", "standard").lower() == "verbose":
                 log_data["request_id"] = correlation_id.get()
 
             status_code = info["status_code"]
