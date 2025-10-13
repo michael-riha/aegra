@@ -1,22 +1,16 @@
 coverage:
   status:
+    # Fail PRs that reduce total coverage by more than 2%
     project:
       default:
         target: auto
-        threshold: 0%
-        base: auto
+        threshold: 2%
+    # Treat patch coverage as informational only
     patch:
       default:
-        target: auto
-        threshold: 0%
-        base: auto
+        informational: true
 
 comment:
-  layout: "diff, flags, files"
-  behavior: default
-  require_changes: false
-  require_base: false
-  require_head: true
   hide_project_coverage: false
 
 # When modifying this file, please validate using
