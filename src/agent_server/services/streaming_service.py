@@ -1,9 +1,10 @@
 """Streaming service for orchestrating SSE streaming"""
 
 import asyncio
-import logging
 from collections.abc import AsyncIterator
 from typing import Any
+
+import structlog
 
 from ..core.sse import create_error_event, create_metadata_event
 from ..models import Run
@@ -12,7 +13,7 @@ from .broker import broker_manager
 from .event_converter import EventConverter
 from .event_store import event_store, store_sse_event
 
-logger = logging.getLogger(__name__)
+logger = structlog.getLogger(__name__)
 
 
 class StreamingService:
@@ -55,7 +56,7 @@ class StreamingService:
                 self.event_counters[run_id] = idx
                 return idx
         except Exception:
-            pass  # Ignore format issues
+            logger.warning("Event counter update failed")  # Ignore format issues
         return self.event_counters.get(run_id, 0)
 
     async def put_to_broker(
