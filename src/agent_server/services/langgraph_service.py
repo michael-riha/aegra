@@ -176,7 +176,7 @@ class LangGraphService:
                 )
             except Exception:
                 # Fallback: property may be immutably set; run as-is with warning
-                logger.warn(
+                logger.warning(
                     f"⚠️  Pre-compiled graph '{graph_id}' does not support checkpointer injection; running without persistence"
                 )
                 compiled_graph = base_graph

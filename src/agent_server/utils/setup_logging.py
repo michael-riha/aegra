@@ -24,8 +24,7 @@ def get_logging_config() -> dict[str, Any]:
     """
     # Determine log level from environment or set a default
     env_mode = os.getenv("ENV_MODE", "LOCAL").upper()
-    default_level = "DEBUG" if env_mode == "PRODUCTION" else "INFO"
-    log_level = os.getenv("LOG_LEVEL", default_level).upper()
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 
     # These processors will be used by BOTH structlog and standard logging
     # to ensure consistent output for all logs.

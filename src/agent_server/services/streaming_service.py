@@ -55,8 +55,8 @@ class StreamingService:
             if idx > current:
                 self.event_counters[run_id] = idx
                 return idx
-        except Exception:
-            logger.warning("Event counter update failed")  # Ignore format issues
+        except Exception as e:
+            logger.warning(f"Event counter update failed: {e}")
         return self.event_counters.get(run_id, 0)
 
     async def put_to_broker(

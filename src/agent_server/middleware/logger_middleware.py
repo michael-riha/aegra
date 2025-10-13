@@ -20,7 +20,6 @@ class AccessInfo(TypedDict, total=False):
 class StructLogMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
-        pass
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         # If the request is not an HTTP request, we don't need to do anything special
