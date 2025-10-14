@@ -419,8 +419,7 @@ class TestEventStore:
         await event_store.stop_cleanup_task()
 
         # Verify cleanup was attempted (connection was used)
-
-
+        assert mock_conn.execute.called, "Cleanup loop did not attempt to execute cleanup SQL"
 class TestStoreSSEEvent:
     """Unit tests for store_sse_event helper function"""
 
