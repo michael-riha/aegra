@@ -312,9 +312,7 @@ class TestEventStoreIntegration:
 
         assert info is not None
         assert info["run_id"] == run_id
-        assert (
-            info["event_count"] == 1
-        )  # 1 - None + 1 = 1, but should handle gracefully
+        assert info["event_count"] == 1  # Expect event_count to be 1 for a single event
         assert info["last_event_id"] == f"{run_id}_event_1"
 
     @pytest.mark.asyncio
