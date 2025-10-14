@@ -409,17 +409,29 @@ class TestEventStore:
         mock_engine.begin.return_value.__aexit__ = AsyncMock(return_value=None)
         mock_conn.execute = AsyncMock()
 
-        # Start the cleanup task
-        await event_store.start_cleanup_task()
+        with (
+            patch.object(event_store, "CLEANUP_INTERVAL", 0.01),
+            patch(
+                "src.agent_server.services.event_store.db_manager"
+            ) as mock_db_manager,
+        ):
+            mock_db_manager.get_engine.return_value = mock_engine
 
-        # Wait a bit for the loop to run (it runs every 300 seconds, so we need to mock time)
-        await asyncio.sleep(0.1)
+            # Start the cleanup task
+            await event_store.start_cleanup_task()
 
-        # Stop the task
-        await event_store.stop_cleanup_task()
+            # Wait for the loop to run at least once
+            await asyncio.sleep(0.05)
+
+            # Stop the task
+            await event_store.stop_cleanup_task()
 
         # Verify cleanup was attempted (connection was used)
-        assert mock_conn.execute.called, "Cleanup loop did not attempt to execute cleanup SQL"
+        assert mock_conn.execute.called, (
+            "Cleanup loop did not attempt to execute cleanup SQL"
+        )
+
+
 class TestStoreSSEEvent:
     """Unit tests for store_sse_event helper function"""
 
