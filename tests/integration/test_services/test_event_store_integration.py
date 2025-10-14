@@ -35,7 +35,7 @@ def database_available():
     except Exception:
         yield False
     finally:
-        if 'engine' in locals():
+        if "engine" in locals():
             engine.dispose()
 
 
@@ -114,14 +114,22 @@ def event_store(clean_event_store_tables):
         async def execute(self, stmt, params=None):
             # Run sync execute in thread pool
             import asyncio
+
             loop = asyncio.get_event_loop()
             if params:
-                result = await loop.run_in_executor(None, lambda: self.sync_conn.execute(stmt, params))
+                result = await loop.run_in_executor(
+                    None, lambda: self.sync_conn.execute(stmt, params)
+                )
             else:
-                result = await loop.run_in_executor(None, lambda: self.sync_conn.execute(stmt))
+                result = await loop.run_in_executor(
+                    None, lambda: self.sync_conn.execute(stmt)
+                )
             return result
 
-    with patch('src.agent_server.services.event_store.db_manager.get_engine', return_value=AsyncEngineWrapper(sync_engine)):
+    with patch(
+        "src.agent_server.services.event_store.db_manager.get_engine",
+        return_value=AsyncEngineWrapper(sync_engine),
+    ):
         yield EventStore()
 
     sync_engine.dispose()
@@ -138,7 +146,7 @@ class TestEventStoreIntegration:
             id=f"{run_id}_event_1",
             event="test_start",
             data={"type": "run_start", "message": "Integration test started"},
-            timestamp=datetime.now(UTC)
+            timestamp=datetime.now(UTC),
         )
 
         # Store event
@@ -171,7 +179,7 @@ class TestEventStoreIntegration:
                 id=f"{run_id}_event_{i}",
                 event=event_type,
                 data=data,
-                timestamp=datetime.now(UTC)
+                timestamp=datetime.now(UTC),
             )
             await event_store.store_event(run_id, event)
             stored_events.append(event)
@@ -198,7 +206,7 @@ class TestEventStoreIntegration:
                 id=f"{run_id}_event_{i}",
                 event=f"event_{i}",
                 data={"sequence": i},
-                timestamp=datetime.now(UTC)
+                timestamp=datetime.now(UTC),
             )
             await event_store.store_event(run_id, event)
 
@@ -221,7 +229,7 @@ class TestEventStoreIntegration:
                 id=f"{run_id}_event_{i}",
                 event=f"event_{i}",
                 data={"sequence": i},
-                timestamp=datetime.now(UTC)
+                timestamp=datetime.now(UTC),
             )
             await event_store.store_event(run_id, event)
 
@@ -244,7 +252,7 @@ class TestEventStoreIntegration:
                     id=f"{run_id}_event_{i}",
                     event=f"event_{i}",
                     data={"run": run_id, "sequence": i},
-                    timestamp=datetime.now(UTC)
+                    timestamp=datetime.now(UTC),
                 )
                 await event_store.store_event(run_id, event)
 
@@ -274,7 +282,7 @@ class TestEventStoreIntegration:
                 id=f"{run_id}_event_{i}",
                 event=f"event_{i}",
                 data={"sequence": i},
-                timestamp=datetime.now(UTC)
+                timestamp=datetime.now(UTC),
             )
             await event_store.store_event(run_id, event)
 
@@ -296,7 +304,7 @@ class TestEventStoreIntegration:
             id=f"{run_id}_event_1",
             event="single_event",
             data={"type": "single"},
-            timestamp=datetime.now(UTC)
+            timestamp=datetime.now(UTC),
         )
         await event_store.store_event(run_id, event)
 
@@ -304,7 +312,9 @@ class TestEventStoreIntegration:
 
         assert info is not None
         assert info["run_id"] == run_id
-        assert info["event_count"] == 1  # 1 - None + 1 = 1, but should handle gracefully
+        assert (
+            info["event_count"] == 1
+        )  # 1 - None + 1 = 1, but should handle gracefully
         assert info["last_event_id"] == f"{run_id}_event_1"
 
     @pytest.mark.asyncio
@@ -328,7 +338,7 @@ class TestEventStoreIntegration:
                     id=f"{run_id}_event_{i}",
                     event=f"concurrent_event_{i}",
                     data={"run": run_id, "seq": i},
-                    timestamp=datetime.now(UTC)
+                    timestamp=datetime.now(UTC),
                 )
                 await event_store.store_event(run_id, event)
 
@@ -357,7 +367,7 @@ class TestEventStoreIntegration:
                 id=f"{run_id}_event_{i}",
                 event=f"persistence_event_{i}",
                 data={"persistent": True, "seq": i},
-                timestamp=datetime.now(UTC)
+                timestamp=datetime.now(UTC),
             )
             await event_store.store_event(run_id, event)
 
@@ -380,20 +390,17 @@ class TestEventStoreIntegration:
                 "array": [1, 2, {"deep": "value"}],
                 "boolean": True,
                 "null": None,
-                "number": 42.5
+                "number": 42.5,
             },
             "timestamp": datetime.now(UTC).isoformat(),
-            "metadata": {
-                "version": "1.0",
-                "tags": ["test", "complex", "json"]
-            }
+            "metadata": {"version": "1.0", "tags": ["test", "complex", "json"]},
         }
 
         event = SSEEvent(
             id=f"{run_id}_event_1",
             event="complex_data",
             data=complex_data,
-            timestamp=datetime.now(UTC)
+            timestamp=datetime.now(UTC),
         )
 
         # Store complex event
@@ -411,4 +418,3 @@ class TestEventStoreIntegration:
         assert retrieved_data["nested"]["null"] is None
         assert retrieved_data["nested"]["number"] == 42.5
         assert retrieved_data["metadata"]["tags"] == ["test", "complex", "json"]
-

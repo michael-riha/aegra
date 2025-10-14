@@ -39,12 +39,18 @@ class TestEventStore:
             id=f"{run_id}_event_1",
             event="test_event",
             data={"key": "value"},
-            timestamp=datetime.now(UTC)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
             mock_conn.execute = AsyncMock()
 
             # Execute
@@ -66,19 +72,27 @@ class TestEventStore:
             assert params["data"] == event.data
 
     @pytest.mark.asyncio
-    async def test_store_event_sequence_extraction_edge_cases(self, event_store, mock_conn):
+    async def test_store_event_sequence_extraction_edge_cases(
+        self, event_store, mock_conn
+    ):
         """Test sequence extraction from various event ID formats"""
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
             mock_conn.execute = AsyncMock()
 
             test_cases = [
                 ("run_123_event_42", 42),  # Normal case
-                ("simple_event_0", 0),     # Zero sequence
-                ("run_event_999", 999),    # Large sequence
-                ("broken_format", 0),      # No sequence found, defaults to 0
-                ("run_event_", 0),         # Empty sequence, defaults to 0
+                ("simple_event_0", 0),  # Zero sequence
+                ("run_event_999", 999),  # Large sequence
+                ("broken_format", 0),  # No sequence found, defaults to 0
+                ("run_event_", 0),  # Empty sequence, defaults to 0
             ]
 
             for event_id, expected_seq in test_cases:
@@ -96,8 +110,12 @@ class TestEventStore:
         event = SSEEvent(id="test_event_1", event="test", data={})
 
         # Simulate database error
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.side_effect = SQLAlchemyError("Database connection failed")
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.side_effect = SQLAlchemyError(
+                "Database connection failed"
+            )
 
             # Execute and assert
             with pytest.raises(SQLAlchemyError):
@@ -111,16 +129,32 @@ class TestEventStore:
 
         # Mock the result rows
         mock_rows = [
-            Mock(id=f"{run_id}_event_6", event="event6", data={"seq": 6}, created_at=datetime.now(UTC)),
-            Mock(id=f"{run_id}_event_7", event="event7", data={"seq": 7}, created_at=datetime.now(UTC)),
+            Mock(
+                id=f"{run_id}_event_6",
+                event="event6",
+                data={"seq": 6},
+                created_at=datetime.now(UTC),
+            ),
+            Mock(
+                id=f"{run_id}_event_7",
+                event="event7",
+                data={"seq": 7},
+                created_at=datetime.now(UTC),
+            ),
         ]
         mock_result = Mock()
         mock_result.fetchall.return_value = mock_rows
         mock_conn.execute = AsyncMock(return_value=mock_result)
 
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
 
             # Execute
             events = await event_store.get_events_since(run_id, last_event_id)
@@ -144,9 +178,15 @@ class TestEventStore:
         mock_result.fetchall.return_value = []
         mock_conn.execute = AsyncMock(return_value=mock_result)
 
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
 
             events = await event_store.get_events_since("test-run", "test_event_1")
 
@@ -159,9 +199,15 @@ class TestEventStore:
         mock_result.fetchall.return_value = []
         mock_conn.execute = AsyncMock(return_value=mock_result)
 
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
 
             # Should default to last_seq = -1 for malformed IDs
             await event_store.get_events_since("test-run", "malformed_id")
@@ -176,17 +222,38 @@ class TestEventStore:
         run_id = "test-run-123"
 
         mock_rows = [
-            Mock(id=f"{run_id}_event_1", event="start", data={"type": "start"}, created_at=datetime.now(UTC)),
-            Mock(id=f"{run_id}_event_2", event="chunk", data={"data": "chunk1"}, created_at=datetime.now(UTC)),
-            Mock(id=f"{run_id}_event_3", event="end", data={"type": "end"}, created_at=datetime.now(UTC)),
+            Mock(
+                id=f"{run_id}_event_1",
+                event="start",
+                data={"type": "start"},
+                created_at=datetime.now(UTC),
+            ),
+            Mock(
+                id=f"{run_id}_event_2",
+                event="chunk",
+                data={"data": "chunk1"},
+                created_at=datetime.now(UTC),
+            ),
+            Mock(
+                id=f"{run_id}_event_3",
+                event="end",
+                data={"type": "end"},
+                created_at=datetime.now(UTC),
+            ),
         ]
         mock_result = Mock()
         mock_result.fetchall.return_value = mock_rows
         mock_conn.execute = AsyncMock(return_value=mock_result)
 
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
 
             events = await event_store.get_all_events(run_id)
 
@@ -205,9 +272,15 @@ class TestEventStore:
         """Test successful event cleanup for a specific run"""
         run_id = "test-run-123"
 
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
             mock_conn.execute = AsyncMock()
 
             await event_store.cleanup_events(run_id)
@@ -228,13 +301,21 @@ class TestEventStore:
 
         # Mock the last event query
         mock_last_result = Mock()
-        mock_last_result.fetchone.return_value = Mock(id=f"{run_id}_event_5", created_at=datetime.now(UTC))
+        mock_last_result.fetchone.return_value = Mock(
+            id=f"{run_id}_event_5", created_at=datetime.now(UTC)
+        )
 
         mock_conn.execute = AsyncMock(side_effect=[mock_range_result, mock_last_result])
 
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
 
             info = await event_store.get_run_info(run_id)
 
@@ -251,9 +332,15 @@ class TestEventStore:
         mock_result.fetchone.return_value = None  # No events
         mock_conn.execute = AsyncMock(return_value=mock_result)
 
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
 
             info = await event_store.get_run_info("empty-run")
 
@@ -268,13 +355,21 @@ class TestEventStore:
 
         # Mock last event query
         mock_last_result = Mock()
-        mock_last_result.fetchone.return_value = Mock(id="run_event_1", created_at=datetime.now(UTC))
+        mock_last_result.fetchone.return_value = Mock(
+            id="run_event_1", created_at=datetime.now(UTC)
+        )
 
         mock_conn.execute = AsyncMock(side_effect=[mock_range_result, mock_last_result])
 
-        with patch("src.agent_server.services.event_store.db_manager") as mock_db_manager:
-            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = AsyncMock(return_value=None)
+        with patch(
+            "src.agent_server.services.event_store.db_manager"
+        ) as mock_db_manager:
+            mock_db_manager.get_engine.return_value.begin.return_value.__aenter__ = (
+                AsyncMock(return_value=mock_conn)
+            )
+            mock_db_manager.get_engine.return_value.begin.return_value.__aexit__ = (
+                AsyncMock(return_value=None)
+            )
 
             info = await event_store.get_run_info("single-event-run")
 
@@ -306,7 +401,9 @@ class TestEventStore:
         assert event_store._cleanup_task.done()
 
     @pytest.mark.asyncio
-    async def test_cleanup_loop_functionality(self, event_store, mock_engine, mock_conn):
+    async def test_cleanup_loop_functionality(
+        self, event_store, mock_engine, mock_conn
+    ):
         """Test the cleanup loop functionality"""
         mock_engine.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
         mock_engine.begin.return_value.__aexit__ = AsyncMock(return_value=None)
@@ -337,7 +434,9 @@ class TestStoreSSEEvent:
         """Test successful SSE event storage"""
         mock_event_store.store_event = AsyncMock()
 
-        with patch("src.agent_server.services.event_store.event_store", mock_event_store):
+        with patch(
+            "src.agent_server.services.event_store.event_store", mock_event_store
+        ):
             run_id = "test-run-123"
             event_id = f"{run_id}_event_1"
             event_type = "test_event"
@@ -366,14 +465,16 @@ class TestStoreSSEEvent:
     @pytest.mark.asyncio
     async def test_store_sse_event_json_serialization(self):
         """Test that complex objects are properly JSON serialized"""
-        with patch("src.agent_server.services.event_store.event_store") as mock_event_store:
+        with patch(
+            "src.agent_server.services.event_store.event_store"
+        ) as mock_event_store:
             mock_event_store.store_event = AsyncMock()
 
             # Data with non-JSON serializable object
             data = {
                 "datetime": datetime.now(UTC),
                 "nested": {"complex": datetime(2023, 1, 1, tzinfo=UTC)},
-                "normal": "string"
+                "normal": "string",
             }
 
             await store_sse_event("run-123", "event-1", "test", data)
@@ -392,7 +493,9 @@ class TestStoreSSEEvent:
     @pytest.mark.asyncio
     async def test_store_sse_event_serialization_fallback(self):
         """Test fallback behavior when JSON serialization fails"""
-        with patch("src.agent_server.services.event_store.event_store") as mock_event_store:
+        with patch(
+            "src.agent_server.services.event_store.event_store"
+        ) as mock_event_store:
             mock_event_store.store_event = AsyncMock()
 
             # Create an object that can't be serialized even with custom serializer
