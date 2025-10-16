@@ -67,15 +67,14 @@ class LangfuseProvider(ObservabilityProvider):
 _langfuse_provider = LangfuseProvider()
 
 
-def get_tracing_callbacks() -> list:
+def get_tracing_callbacks() -> list[Any]:
     """
     Backward compatibility function - delegates to the new observability system.
     """
     from .base import get_observability_manager
 
-    # Register the Langfuse provider if not already registered
+    # Register the Langfuse provider unconditionally; registration should be idempotent
     manager = get_observability_manager()
-    if _langfuse_provider not in manager._providers:
-        manager.register_provider(_langfuse_provider)
+    manager.register_provider(_langfuse_provider)
 
     return manager.get_all_callbacks()

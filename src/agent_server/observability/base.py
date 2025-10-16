@@ -1,7 +1,10 @@
 """Base observability interface for extensible tracing and monitoring."""
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ObservabilityProvider(ABC):
@@ -32,9 +35,12 @@ class ObservabilityManager:
         self._providers: list[ObservabilityProvider] = []
 
     def register_provider(self, provider: ObservabilityProvider) -> None:
-        """Register an observability provider."""
-        if provider.is_enabled():
-            self._providers.append(provider)
+        """Register an observability provider (idempotent)."""
+        if not provider.is_enabled():
+            return
+        if provider in self._providers:
+            return
+        self._providers.append(provider)
 
     def get_all_callbacks(self) -> list[Any]:
         """Get callbacks from all enabled providers."""
@@ -43,9 +49,6 @@ class ObservabilityManager:
             try:
                 callbacks.extend(provider.get_callbacks())
             except Exception as e:
-                import logging
-
-                logger = logging.getLogger(__name__)
                 logger.error(
                     f"Failed to get callbacks from {provider.__class__.__name__}: {e}"
                 )
@@ -63,9 +66,6 @@ class ObservabilityManager:
                 )
                 metadata.update(provider_metadata)
             except Exception as e:
-                import logging
-
-                logger = logging.getLogger(__name__)
                 logger.error(
                     f"Failed to get metadata from {provider.__class__.__name__}: {e}"
                 )
