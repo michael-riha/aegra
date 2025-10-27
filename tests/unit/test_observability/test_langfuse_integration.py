@@ -312,9 +312,15 @@ class TestGetTracingCallbacks:
 
     def test_env_var_case_insensitive(self, monkeypatch):
         """Test that environment variable value is case-insensitive"""
+        from src.agent_server.observability.base import get_observability_manager
+
         test_cases = ["true", "True", "TRUE", "TrUe"]
 
         for value in test_cases:
+            # Clear the manager for each iteration since we're reloading the module
+            manager = get_observability_manager()
+            manager._providers.clear()
+
             monkeypatch.setenv("LANGFUSE_LOGGING", value)
 
             mock_handler = MagicMock()

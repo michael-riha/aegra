@@ -35,11 +35,18 @@ class ObservabilityManager:
         self._providers: list[ObservabilityProvider] = []
 
     def register_provider(self, provider: ObservabilityProvider) -> None:
-        """Register an observability provider (idempotent)."""
+        """Register an observability provider (idempotent for same instance).
+
+        Only registers enabled providers. Skips if the exact same instance
+        is already registered (checked by object identity).
+        """
         if not provider.is_enabled():
             return
+
+        # Check if this exact instance is already registered (by object identity)
         if provider in self._providers:
             return
+
         self._providers.append(provider)
 
     def get_all_callbacks(self) -> list[Any]:
