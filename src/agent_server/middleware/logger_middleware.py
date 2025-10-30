@@ -4,7 +4,6 @@ from typing import TypedDict
 
 import structlog
 from asgi_correlation_id import correlation_id
-from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.protocols.utils import get_path_with_query_string
 
@@ -34,29 +33,23 @@ class StructLogMiddleware:
 
         # Inner send function
         async def inner_send(message):
-            if message["type"] == "http.response.start":
-                info["status_code"] = message["status"]
+            if message.get("type") == "http.response.start":
+                info["status_code"] = message.get("status", 500)
             await send(message)
 
         try:
             info["start_time"] = time.perf_counter_ns()
             await self.app(scope, receive, inner_send)
         except Exception as e:
+            # Log the exception here, but re-raise so application-level
+            # exception handlers (e.g. Agent Protocol formatter) can run.
             app_logger.exception(
-                "An unhandled exception was caught by last resort middleware",
+                "An unhandled exception was caught by middleware; re-raising to allow app handlers to format response",
                 exception_class=e.__class__.__name__,
                 exc_info=e,
                 stack_info=True,
             )
-            info["status_code"] = 500
-            response = JSONResponse(
-                status_code=500,
-                content={
-                    "error": "Internal Server Error",
-                    "message": "An unexpected error occurred.",
-                },
-            )
-            await response(scope, receive, send)
+            raise
         finally:
             process_time = time.perf_counter_ns() - info["start_time"]
             client_host, client_port = scope["client"]
@@ -67,14 +60,14 @@ class StructLogMiddleware:
             # Recreate the Uvicorn access log format, but add all parameters as structured information
             log_data = {
                 "url": str(url),
-                "status_code": info["status_code"],
+                "status_code": info.get("status_code", 500),
                 "method": http_method,
                 "version": http_version,
             }
             if os.getenv("LOG_VERBOSITY", "standard").lower() == "verbose":
                 log_data["request_id"] = correlation_id.get()
 
-            status_code = info["status_code"]
+            status_code = info.get("status_code", 500)
             if 400 <= status_code < 500:
                 # Log as warning for client errors (4xx)
                 access_logger.warning(

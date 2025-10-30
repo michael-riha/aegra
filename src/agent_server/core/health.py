@@ -36,12 +36,7 @@ async def info() -> InfoResponse:
         version="0.1.0",
         description="Production-ready Agent Protocol server built on LangGraph",
         status="running",
-        flags={
-            "assistants": True,
-            "crons": False,
-            "langsmith": True,
-            "langsmith_tracing_replicas": True,
-        },
+        flags={"assistants": True, "crons": False},
     )
 
 

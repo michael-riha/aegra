@@ -82,7 +82,7 @@ def main():
 
     uvicorn.run(
         "src.agent_server.main:app",
-        host=os.getenv("HOST", "127.0.0.1"),
+        host=os.getenv("HOST", "0.0.0.0"),  # nosec B104 - required for Docker
         port=port,
         reload=True,
         access_log=False,

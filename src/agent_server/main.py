@@ -36,10 +36,12 @@ from .core.database import db_manager
 from .core.health import router as health_router
 from .middleware import DoubleEncodedJSONMiddleware, StructLogMiddleware
 from .models.errors import AgentProtocolError, get_error_type
+from .utils.setup_logging import setup_logging
 
 # Task management for run cancellation
 active_runs: dict[str, asyncio.Task] = {}
 
+setup_logging()
 logger = structlog.getLogger(__name__)
 
 

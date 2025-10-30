@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import copy
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any
@@ -27,6 +26,7 @@ from ..models import Run, RunCreate, RunStatus, User
 from ..services.langgraph_service import create_run_config, get_langgraph_service
 from ..services.streaming_service import streaming_service
 from ..utils.assistants import resolve_assistant_id
+from ..utils.run_utils import _merge_jsonb, _should_skip_event
 
 router = APIRouter()
 
@@ -104,15 +104,6 @@ async def update_thread_metadata(
     await session.commit()
 
 
-def _merge_jsonb(*objects: dict) -> dict:
-    """Mimics PostgreSQL's JSONB merge behavior"""
-    result = {}
-    for obj in objects:
-        if obj is not None:
-            result.update(copy.deepcopy(obj))
-    return result
-
-
 @router.post("/threads/{thread_id}/runs", response_model=Run)
 async def create_run(
     thread_id: str,
@@ -175,8 +166,8 @@ async def create_run(
     if not assistant:
         raise HTTPException(404, f"Assistant '{request.assistant_id}' not found")
 
-    config = _merge_jsonb(config, assistant.config)
-    context = _merge_jsonb(context, assistant.context)
+    config = _merge_jsonb(assistant.config, config)
+    context = _merge_jsonb(assistant.context, context)
 
     # Validate the assistant's graph exists
     available_graphs = langgraph_service.list_graphs()
@@ -314,8 +305,8 @@ async def create_and_stream_run(
     if not assistant:
         raise HTTPException(404, f"Assistant '{request.assistant_id}' not found")
 
-    config = _merge_jsonb(config, assistant.config)
-    context = _merge_jsonb(context, assistant.context)
+    config = _merge_jsonb(assistant.config, config)
+    context = _merge_jsonb(assistant.context, context)
 
     # Validate the assistant's graph exists
     available_graphs = langgraph_service.list_graphs()
@@ -734,26 +725,6 @@ async def cancel_run_endpoint(
     return Run.model_validate(
         {c.name: getattr(run_orm, c.name) for c in run_orm.__table__.columns}
     )
-
-
-def _should_skip_event(raw_event: Any) -> bool:
-    """Check if an event should be skipped based on langsmith:nostream tag"""
-    try:
-        # Check if the event has metadata with tags containing 'langsmith:nostream'
-        if isinstance(raw_event, tuple) and len(raw_event) >= 2:
-            # For tuple events, check the third element (metadata tuple)
-            metadata_tuple = raw_event[len(raw_event) - 1]
-            if isinstance(metadata_tuple, tuple) and len(metadata_tuple) >= 2:
-                # Get the second item in the metadata tuple
-                metadata = metadata_tuple[1]
-                if isinstance(metadata, dict) and "tags" in metadata:
-                    tags = metadata["tags"]
-                    if isinstance(tags, list) and "langsmith:nostream" in tags:
-                        return True
-        return False
-    except Exception:
-        # If we can't parse the event structure, don't skip it
-        return False
 
 
 async def execute_run_async(

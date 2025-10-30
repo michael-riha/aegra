@@ -6,14 +6,6 @@ from typing import Any
 import structlog
 
 
-class InterceptHandler(logging.Handler):
-    def emit(self, record: logging.LogRecord) -> None:
-        # Get corresponding logger from the logging framework
-        logger = logging.getLogger(record.name)
-        # Forward the log record
-        logger.handle(record)
-
-
 def get_logging_config() -> dict[str, Any]:
     """
     Returns a unified logging configuration dictionary that uses structlog
@@ -88,7 +80,7 @@ def get_logging_config() -> dict[str, Any]:
                 "level": "INFO",
             },
             "uvicorn.access": {
-                "level": "INFO",
+                "level": "WARNING",
             },
         },
     }
