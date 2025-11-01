@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agent_server.observability.base import get_observability_manager
-from src.agent_server.observability.langfuse_integration import _langfuse_provider
 
 
 @pytest.mark.unit
@@ -20,9 +19,11 @@ async def test_lifespan_registers_langfuse_provider(monkeypatch):
     import src.agent_server.observability.langfuse_integration as langfuse_module
 
     importlib.reload(langfuse_module)
-
     # Reload main module to get the updated provider
     import src.agent_server.main as main_module
+    from src.agent_server.observability.langfuse_integration import (
+        LangfuseProvider,
+    )
 
     importlib.reload(main_module)
     from src.agent_server.main import lifespan
@@ -55,10 +56,13 @@ async def test_lifespan_registers_langfuse_provider(monkeypatch):
 
         # Run the lifespan function
         async with lifespan(mock_app):
-            # Verify that Langfuse provider is registered
-            # The provider should be in the manager's providers list
+            # Verify that a LangfuseProvider instance is registered
+            # Check by type since reloading creates a new instance
+            langfuse_providers = [
+                p for p in manager._providers if isinstance(p, LangfuseProvider)
+            ]
             assert (
-                _langfuse_provider in manager._providers
+                len(langfuse_providers) == 1
             ), "Langfuse provider should be registered during lifespan startup"
 
             # Verify the observability manager can get callbacks from registered provider
