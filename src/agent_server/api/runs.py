@@ -2,12 +2,12 @@
 
 import asyncio
 import contextlib
-import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from langgraph.types import Command, Send
@@ -26,12 +26,12 @@ from ..models import Run, RunCreate, RunStatus, User
 from ..services.langgraph_service import create_run_config, get_langgraph_service
 from ..services.streaming_service import streaming_service
 from ..utils.assistants import resolve_assistant_id
+from ..utils.run_utils import _merge_jsonb, _should_skip_event
 
 router = APIRouter()
 
-logger = logging.getLogger(__name__)
+logger = structlog.getLogger(__name__)
 serializer = GeneralSerializer()
-# TODO: Replace all print statements and bare exceptions with structured logging across the codebase
 
 
 # NOTE: We keep only an in-memory task registry for asyncio.Task handles.
@@ -129,10 +129,10 @@ async def create_run(
 
     # Get LangGraph service
     langgraph_service = get_langgraph_service()
-    print(
+    logger.info(
         f"create_run: scheduling background task run_id={run_id} thread_id={thread_id} user={user.identity}"
     )
-    print(
+    logger.info(
         f"[create_run] scheduling background task run_id={run_id} thread_id={thread_id} user={user.identity}"
     )
 
@@ -145,6 +145,19 @@ async def create_run(
 
     config = request.config
     context = request.context
+    configurable = config.get("configurable", {})
+
+    if config.get("configurable") and context:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot specify both configurable and context. Prefer setting context alone. Context was introduced in LangGraph 0.6.0 and is the long term planned replacement for configurable.",
+        )
+
+    if context:
+        configurable = context.copy()
+        config["configurable"] = configurable
+    else:
+        context = configurable.copy()
 
     assistant_stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == resolved_assistant_id,
@@ -152,6 +165,9 @@ async def create_run(
     assistant = await session.scalar(assistant_stmt)
     if not assistant:
         raise HTTPException(404, f"Assistant '{request.assistant_id}' not found")
+
+    config = _merge_jsonb(assistant.config, config)
+    context = _merge_jsonb(assistant.context, context)
 
     # Validate the assistant's graph exists
     available_graphs = langgraph_service.list_graphs()
@@ -222,7 +238,7 @@ async def create_run(
             request.stream_subgraphs,
         )
     )
-    print(
+    logger.info(
         f"[create_run] background task created task_id={id(task)} for run_id={run_id}"
     )
     active_runs[run_id] = task
@@ -255,7 +271,7 @@ async def create_and_stream_run(
 
     # Get LangGraph service
     langgraph_service = get_langgraph_service()
-    print(
+    logger.info(
         f"[create_and_stream_run] scheduling background task run_id={run_id} thread_id={thread_id} user={user.identity}"
     )
 
@@ -268,6 +284,19 @@ async def create_and_stream_run(
 
     config = request.config
     context = request.context
+    configurable = config.get("configurable", {})
+
+    if config.get("configurable") and context:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot specify both configurable and context. Prefer setting context alone. Context was introduced in LangGraph 0.6.0 and is the long term planned replacement for configurable.",
+        )
+
+    if context:
+        configurable = context.copy()
+        config["configurable"] = configurable
+    else:
+        context = configurable.copy()
 
     assistant_stmt = select(AssistantORM).where(
         AssistantORM.assistant_id == resolved_assistant_id,
@@ -275,6 +304,9 @@ async def create_and_stream_run(
     assistant = await session.scalar(assistant_stmt)
     if not assistant:
         raise HTTPException(404, f"Assistant '{request.assistant_id}' not found")
+
+    config = _merge_jsonb(assistant.config, config)
+    context = _merge_jsonb(assistant.context, context)
 
     # Validate the assistant's graph exists
     available_graphs = langgraph_service.list_graphs()
@@ -345,7 +377,7 @@ async def create_and_stream_run(
             request.stream_subgraphs,
         )
     )
-    print(
+    logger.info(
         f"[create_and_stream_run] background task created task_id={id(task)} for run_id={run_id}"
     )
     active_runs[run_id] = task
@@ -386,7 +418,7 @@ async def get_run(
         RunORM.thread_id == thread_id,
         RunORM.user_id == user.identity,
     )
-    print(
+    logger.info(
         f"[get_run] querying DB run_id={run_id} thread_id={thread_id} user={user.identity}"
     )
     run_orm = await session.scalar(stmt)
@@ -396,7 +428,7 @@ async def get_run(
     # Refresh to ensure we have the latest data (in case background task updated it)
     await session.refresh(run_orm)
 
-    print(
+    logger.info(
         f"[get_run] found run status={run_orm.status} user={user.identity} thread_id={thread_id} run_id={run_id}"
     )
     # Convert to Pydantic
@@ -426,14 +458,16 @@ async def list_runs(
         .offset(offset)
         .order_by(RunORM.created_at.desc())
     )
-    print(f"[list_runs] querying DB thread_id={thread_id} user={user.identity}")
+    logger.info(f"[list_runs] querying DB thread_id={thread_id} user={user.identity}")
     result = await session.scalars(stmt)
     rows = result.all()
     runs = [
         Run.model_validate({c.name: getattr(r, c.name) for c in r.__table__.columns})
         for r in rows
     ]
-    print(f"[list_runs] total={len(runs)} user={user.identity} thread_id={thread_id}")
+    logger.info(
+        f"[list_runs] total={len(runs)} user={user.identity} thread_id={thread_id}"
+    )
     return runs
 
 
@@ -446,7 +480,7 @@ async def update_run(
     session: AsyncSession = Depends(get_session),
 ) -> Run:
     """Update run status (for cancellation/interruption, persisted)."""
-    print(
+    logger.info(
         f"[update_run] fetch for update run_id={run_id} thread_id={thread_id} user={user.identity}"
     )
     run_orm = await session.scalar(
@@ -462,31 +496,31 @@ async def update_run(
     # Handle interruption/cancellation
 
     if request.status == "cancelled":
-        print(
+        logger.info(
             f"[update_run] cancelling run_id={run_id} user={user.identity} thread_id={thread_id}"
         )
         await streaming_service.cancel_run(run_id)
-        print(f"[update_run] set DB status=cancelled run_id={run_id}")
+        logger.info(f"[update_run] set DB status=cancelled run_id={run_id}")
         await session.execute(
             update(RunORM)
             .where(RunORM.run_id == str(run_id))
             .values(status="cancelled", updated_at=datetime.now(UTC))
         )
         await session.commit()
-        print(f"[update_run] commit done (cancelled) run_id={run_id}")
+        logger.info(f"[update_run] commit done (cancelled) run_id={run_id}")
     elif request.status == "interrupted":
-        print(
+        logger.info(
             f"[update_run] interrupt run_id={run_id} user={user.identity} thread_id={thread_id}"
         )
         await streaming_service.interrupt_run(run_id)
-        print(f"[update_run] set DB status=interrupted run_id={run_id}")
+        logger.info(f"[update_run] set DB status=interrupted run_id={run_id}")
         await session.execute(
             update(RunORM)
             .where(RunORM.run_id == str(run_id))
             .values(status="interrupted", updated_at=datetime.now(UTC))
         )
         await session.commit()
-        print(f"[update_run] commit done (interrupted) run_id={run_id}")
+        logger.info(f"[update_run] commit done (interrupted) run_id={run_id}")
 
     # Return final run state
     run_orm = await session.scalar(select(RunORM).where(RunORM.run_id == run_id))
@@ -555,7 +589,7 @@ async def stream_run(
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     """Stream run execution with SSE and reconnection support - persisted metadata."""
-    print(
+    logger.info(
         f"[stream_run] fetch for stream run_id={run_id} thread_id={thread_id} user={user.identity}"
     )
     run_orm = await session.scalar(
@@ -568,7 +602,7 @@ async def stream_run(
     if not run_orm:
         raise HTTPException(404, f"Run '{run_id}' not found")
 
-    print(
+    logger.info(
         f"[stream_run] status={run_orm.status} user={user.identity} thread_id={thread_id} run_id={run_id}"
     )
     # If already terminal, emit a final end event
@@ -577,7 +611,7 @@ async def stream_run(
         async def generate_final() -> AsyncIterator[str]:
             yield create_end_event()
 
-        print(
+        logger.info(
             f"[stream_run] starting terminal stream run_id={run_id} status={run_orm.status}"
         )
         return StreamingResponse(
@@ -633,7 +667,7 @@ async def cancel_run_endpoint(
     - action=interrupt => cooperative interrupt if supported
     - wait=1 => await background task to finish settling
     """
-    print(
+    logger.info(
         f"[cancel_run] fetch run run_id={run_id} thread_id={thread_id} user={user.identity}"
     )
     run_orm = await session.scalar(
@@ -647,7 +681,7 @@ async def cancel_run_endpoint(
         raise HTTPException(404, f"Run '{run_id}' not found")
 
     if action == "interrupt":
-        print(
+        logger.info(
             f"[cancel_run] interrupt run_id={run_id} user={user.identity} thread_id={thread_id}"
         )
         await streaming_service.interrupt_run(run_id)
@@ -659,7 +693,7 @@ async def cancel_run_endpoint(
         )
         await session.commit()
     else:
-        print(
+        logger.info(
             f"[cancel_run] cancel run_id={run_id} user={user.identity} thread_id={thread_id}"
         )
         await streaming_service.cancel_run(run_id)
@@ -691,26 +725,6 @@ async def cancel_run_endpoint(
     return Run.model_validate(
         {c.name: getattr(run_orm, c.name) for c in run_orm.__table__.columns}
     )
-
-
-def _should_skip_event(raw_event: Any) -> bool:
-    """Check if an event should be skipped based on langsmith:nostream tag"""
-    try:
-        # Check if the event has metadata with tags containing 'langsmith:nostream'
-        if isinstance(raw_event, tuple) and len(raw_event) >= 2:
-            # For tuple events, check the third element (metadata tuple)
-            metadata_tuple = raw_event[len(raw_event) - 1]
-            if isinstance(metadata_tuple, tuple) and len(metadata_tuple) >= 2:
-                # Get the second item in the metadata tuple
-                metadata = metadata_tuple[1]
-                if isinstance(metadata, dict) and "tags" in metadata:
-                    tags = metadata["tags"]
-                    if isinstance(tags, list) and "langsmith:nostream" in tags:
-                        return True
-        return False
-    except Exception:
-        # If we can't parse the event structure, don't skip it
-        return False
 
 
 async def execute_run_async(
@@ -937,12 +951,12 @@ async def update_run_status(
                 }
         if error is not None:
             values["error_message"] = error
-        print(f"[update_run_status] updating DB run_id={run_id} status={status}")
+        logger.info(f"[update_run_status] updating DB run_id={run_id} status={status}")
         await session.execute(
             update(RunORM).where(RunORM.run_id == str(run_id)).values(**values)
         )  # type: ignore[arg-type]
         await session.commit()
-        print(f"[update_run_status] commit done run_id={run_id}")
+        logger.info(f"[update_run_status] commit done run_id={run_id}")
     finally:
         # Close only if we created it here
         if owns_session:
@@ -967,7 +981,7 @@ async def delete_run(
     - If force=1 and the run is active, cancels it first (best-effort) and then deletes.
     - Always returns 204 No Content on successful deletion.
     """
-    print(
+    logger.info(
         f"[delete_run] fetch run run_id={run_id} thread_id={thread_id} user={user.identity}"
     )
     run_orm = await session.scalar(
@@ -989,7 +1003,7 @@ async def delete_run(
 
     # If forcing and active, cancel first
     if force and run_orm.status in ["pending", "running", "streaming"]:
-        print(f"[delete_run] force-cancelling active run run_id={run_id}")
+        logger.info(f"[delete_run] force-cancelling active run run_id={run_id}")
         await streaming_service.cancel_run(run_id)
         # Best-effort: wait for bg task to settle
         task = active_runs.get(run_id)
