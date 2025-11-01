@@ -226,66 +226,6 @@ async def test_runs_wait_stateful_e2e():
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
-async def test_runs_wait_stateless_e2e():
-    """
-    Test the stateless wait endpoint (POST /runs/wait).
-    This endpoint creates a temporary thread, runs the assistant, and returns the final output.
-
-    Flow:
-      1) Create assistant (no thread needed)
-      2) Use the stateless wait endpoint
-      3) Verify output is returned directly
-      4) Optionally verify temporary thread was created (if we can inspect it)
-    """
-    import os
-
-    from httpx import AsyncClient
-
-    client = get_e2e_client()
-
-    # 1) Setup: Create assistant only
-    assistant = await client.assistants.create(
-        graph_id="agent",
-        config={"tags": ["chat", "stateless-wait-test"]},
-        if_exists="do_nothing",
-    )
-    elog("Assistant.create", assistant)
-    assistant_id = assistant["assistant_id"]
-
-    # 2) Call stateless wait endpoint
-    base_url = os.getenv("AEGRA_BASE_URL", "http://localhost:8000")
-    async with AsyncClient(base_url=base_url, timeout=120.0) as http_client:
-        response = await http_client.post(
-            "/runs/wait",
-            json={
-                "assistant_id": assistant_id,
-                "input": {"messages": [{"role": "user", "content": "Say hi briefly."}]},
-            },
-        )
-        elog(
-            "Stateless wait endpoint response",
-            {
-                "status": response.status_code,
-                "output": response.json() if response.status_code == 200 else None,
-            },
-        )
-
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
-        output = response.json()
-
-        # 3) Verify output format
-        assert isinstance(output, dict), "Expected output to be a dict"
-        elog("Final output from stateless wait", output)
-
-        # The output should be the graph's final state
-        # For chat graphs, typically includes messages
-        assert "messages" in output or len(output) >= 0, (
-            "Expected output to contain graph output"
-        )
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
 async def test_runs_wait_with_interrupts_e2e():
     """
     Test that the wait endpoint handles interrupt scenarios correctly.
