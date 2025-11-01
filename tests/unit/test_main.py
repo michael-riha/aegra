@@ -61,9 +61,9 @@ async def test_lifespan_registers_langfuse_provider(monkeypatch):
             langfuse_providers = [
                 p for p in manager._providers if isinstance(p, LangfuseProvider)
             ]
-            assert (
-                len(langfuse_providers) == 1
-            ), "Langfuse provider should be registered during lifespan startup"
+            assert len(langfuse_providers) == 1, (
+                "Langfuse provider should be registered during lifespan startup"
+            )
 
             # Verify the observability manager can get callbacks from registered provider
             callbacks = manager.get_all_callbacks()
@@ -119,17 +119,17 @@ async def test_lifespan_calls_required_initialization():
         # Verify observability manager was used to register provider
         mock_get_observability_manager.assert_called()
         # Check that register_provider was called with a LangfuseProvider instance
-        assert (
-            mock_manager.register_provider.called
-        ), "register_provider should be called"
+        assert mock_manager.register_provider.called, (
+            "register_provider should be called"
+        )
         call_args = mock_manager.register_provider.call_args
         assert call_args is not None
         # Verify it was called with a LangfuseProvider (check by type/class name)
         from src.agent_server.observability.langfuse_integration import LangfuseProvider
 
-        assert isinstance(
-            call_args[0][0], LangfuseProvider
-        ), "register_provider should be called with LangfuseProvider instance"
+        assert isinstance(call_args[0][0], LangfuseProvider), (
+            "register_provider should be called with LangfuseProvider instance"
+        )
 
         # Verify cleanup
         mock_event_store.stop_cleanup_task.assert_called_once()
