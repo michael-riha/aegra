@@ -36,6 +36,10 @@ from .core.database import db_manager
 from .core.health import router as health_router
 from .middleware import DoubleEncodedJSONMiddleware, StructLogMiddleware
 from .models.errors import AgentProtocolError, get_error_type
+from .observability.base import get_observability_manager
+from .observability.langfuse_integration import _langfuse_provider
+from .services.event_store import event_store
+from .services.langgraph_service import get_langgraph_service
 from .utils.setup_logging import setup_logging
 
 # Task management for run cancellation
@@ -51,15 +55,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Startup: Initialize database and LangGraph components
     await db_manager.initialize()
 
-    # Initialize LangGraph service
-    from .services.langgraph_service import get_langgraph_service
+    # Initialize observability providers
+    observability_manager = get_observability_manager()
+    observability_manager.register_provider(_langfuse_provider)
 
+    # Initialize LangGraph service
     langgraph_service = get_langgraph_service()
     await langgraph_service.initialize()
 
     # Initialize event store cleanup task
-    from .services.event_store import event_store
-
     await event_store.start_cleanup_task()
 
     yield
