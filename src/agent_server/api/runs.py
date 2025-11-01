@@ -104,6 +104,22 @@ async def update_thread_metadata(
     await session.commit()
 
 
+async def _validate_resume_command(
+    session: AsyncSession, thread_id: str, command: dict[str, Any] | None
+) -> None:
+    """Validate resume command requirements."""
+    if command and command.get("resume") is not None:
+        # Check if thread exists and is in interrupted state
+        thread_stmt = select(ThreadORM).where(ThreadORM.thread_id == thread_id)
+        thread = await session.scalar(thread_stmt)
+        if not thread:
+            raise HTTPException(404, f"Thread '{thread_id}' not found")
+        if thread.status != "interrupted":
+            raise HTTPException(
+                400, "Cannot resume: thread is not in interrupted state"
+            )
+
+
 @router.post("/threads/{thread_id}/runs", response_model=Run)
 async def create_run(
     thread_id: str,
@@ -114,16 +130,7 @@ async def create_run(
     """Create and execute a new run (persisted)."""
 
     # Validate resume command requirements early
-    if request.command and request.command.get("resume") is not None:
-        # Check if thread exists and is in interrupted state
-        thread_stmt = select(ThreadORM).where(ThreadORM.thread_id == thread_id)
-        thread = await session.scalar(thread_stmt)
-        if not thread:
-            raise HTTPException(404, f"Thread '{thread_id}' not found")
-        if thread.status != "interrupted":
-            raise HTTPException(
-                400, "Cannot resume: thread is not in interrupted state"
-            )
+    await _validate_resume_command(session, thread_id, request.command)
 
     run_id = str(uuid4())
 
@@ -256,16 +263,7 @@ async def create_and_stream_run(
     """Create a new run and stream its execution - persisted + SSE."""
 
     # Validate resume command requirements early
-    if request.command and request.command.get("resume") is not None:
-        # Check if thread exists and is in interrupted state
-        thread_stmt = select(ThreadORM).where(ThreadORM.thread_id == thread_id)
-        thread = await session.scalar(thread_stmt)
-        if not thread:
-            raise HTTPException(404, f"Thread '{thread_id}' not found")
-        if thread.status != "interrupted":
-            raise HTTPException(
-                400, "Cannot resume: thread is not in interrupted state"
-            )
+    await _validate_resume_command(session, thread_id, request.command)
 
     run_id = str(uuid4())
 
@@ -576,6 +574,164 @@ async def join_run(
         await session.refresh(run_orm)  # Refresh to get latest data from DB
     output = getattr(run_orm, "output", None) or {}
     return output
+
+
+@router.post("/threads/{thread_id}/runs/wait")
+async def wait_for_run(
+    thread_id: str,
+    request: RunCreate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Create a run, execute it, and wait for completion (Agent Protocol).
+
+    This endpoint combines run creation and execution with synchronous waiting.
+    Returns the final output directly (not the Run object).
+
+    Compatible with LangGraph SDK's runs.wait() method and Agent Protocol spec.
+    """
+    # Validate resume command requirements early
+    await _validate_resume_command(session, thread_id, request.command)
+
+    run_id = str(uuid4())
+
+    # Get LangGraph service
+    langgraph_service = get_langgraph_service()
+    logger.info(
+        f"[wait_for_run] creating run run_id={run_id} thread_id={thread_id} user={user.identity}"
+    )
+
+    # Validate assistant exists and get its graph_id
+    requested_id = str(request.assistant_id)
+    available_graphs = langgraph_service.list_graphs()
+    resolved_assistant_id = resolve_assistant_id(requested_id, available_graphs)
+
+    config = request.config
+    context = request.context
+    configurable = config.get("configurable", {})
+
+    if config.get("configurable") and context:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot specify both configurable and context. Prefer setting context alone. Context was introduced in LangGraph 0.6.0 and is the long term planned replacement for configurable.",
+        )
+
+    if context:
+        configurable = context.copy()
+        config["configurable"] = configurable
+    else:
+        context = configurable.copy()
+
+    assistant_stmt = select(AssistantORM).where(
+        AssistantORM.assistant_id == resolved_assistant_id,
+    )
+    assistant = await session.scalar(assistant_stmt)
+    if not assistant:
+        raise HTTPException(404, f"Assistant '{request.assistant_id}' not found")
+
+    config = _merge_jsonb(assistant.config, config)
+    context = _merge_jsonb(assistant.context, context)
+
+    # Validate the assistant's graph exists
+    available_graphs = langgraph_service.list_graphs()
+    if assistant.graph_id not in available_graphs:
+        raise HTTPException(
+            404, f"Graph '{assistant.graph_id}' not found for assistant"
+        )
+
+    # Mark thread as busy and update metadata with assistant/graph info
+    await set_thread_status(session, thread_id, "busy")
+    await update_thread_metadata(
+        session, thread_id, assistant.assistant_id, assistant.graph_id
+    )
+
+    # Persist run record
+    now = datetime.now(UTC)
+    run_orm = RunORM(
+        run_id=run_id,
+        thread_id=thread_id,
+        assistant_id=resolved_assistant_id,
+        status="pending",
+        input=request.input or {},
+        config=config,
+        context=context,
+        user_id=user.identity,
+        created_at=now,
+        updated_at=now,
+        output=None,
+        error_message=None,
+    )
+    session.add(run_orm)
+    await session.commit()
+
+    # Start execution asynchronously
+    task = asyncio.create_task(
+        execute_run_async(
+            run_id,
+            thread_id,
+            assistant.graph_id,
+            request.input or {},
+            user,
+            config,
+            context,
+            request.stream_mode,
+            None,  # Don't pass session to avoid conflicts
+            request.checkpoint,
+            request.command,
+            request.interrupt_before,
+            request.interrupt_after,
+            request.multitask_strategy,
+            request.stream_subgraphs,
+        )
+    )
+    logger.info(
+        f"[wait_for_run] background task created task_id={id(task)} for run_id={run_id}"
+    )
+    active_runs[run_id] = task
+
+    # Wait for task to complete with timeout
+    try:
+        await asyncio.wait_for(task, timeout=300.0)  # 5 minute timeout
+    except TimeoutError:
+        logger.warning(f"[wait_for_run] timeout waiting for run_id={run_id}")
+        # Don't raise, just return current state
+    except asyncio.CancelledError:
+        logger.info(f"[wait_for_run] cancelled run_id={run_id}")
+        # Task was cancelled, continue to return final state
+    except Exception as e:
+        logger.error(f"[wait_for_run] exception in run_id={run_id}: {e}")
+        # Exception already handled by execute_run_async
+
+    # Get final output from database
+    run_orm = await session.scalar(
+        select(RunORM).where(
+            RunORM.run_id == run_id,
+            RunORM.thread_id == thread_id,
+            RunORM.user_id == user.identity,
+        )
+    )
+    if not run_orm:
+        raise HTTPException(500, f"Run '{run_id}' disappeared during execution")
+
+    await session.refresh(run_orm)
+
+    # Return output based on final status
+    if run_orm.status == "completed":
+        return run_orm.output or {}
+    elif run_orm.status == "failed":
+        # For failed runs, still return output if available, but log the error
+        logger.error(
+            f"[wait_for_run] run failed run_id={run_id} error={run_orm.error_message}"
+        )
+        return run_orm.output or {}
+    elif run_orm.status == "interrupted":
+        # Return partial output for interrupted runs
+        return run_orm.output or {}
+    elif run_orm.status == "cancelled":
+        return run_orm.output or {}
+    else:
+        # Still pending/running after timeout
+        return run_orm.output or {}
 
 
 # TODO: check if this method is actually required because the implementation doesn't seem correct.
