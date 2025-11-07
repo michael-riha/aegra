@@ -9,6 +9,7 @@ from uuid import uuid5
 
 import structlog
 from langgraph.graph import StateGraph
+from langgraph.pregel import Pregel
 
 from ..constants import ASSISTANT_NAMESPACE_UUID
 from ..observability.base import get_tracing_callbacks, get_tracing_metadata
@@ -136,9 +137,7 @@ class LangGraphService:
         finally:
             await session.close()
 
-    async def get_graph(
-        self, graph_id: str, force_reload: bool = False
-    ) -> StateGraph[Any]:
+    async def get_graph(self, graph_id: str, force_reload: bool = False) -> Pregel:
         """Get a compiled graph by ID with caching and LangGraph integration"""
         if graph_id not in self._graph_registry:
             raise ValueError(f"Graph not found: {graph_id}")
@@ -155,11 +154,13 @@ class LangGraphService:
         # Always ensure graphs are compiled with our Postgres checkpointer for persistence
         from ..core.database import db_manager
 
-        if hasattr(base_graph, "compile"):
+        checkpointer_cm = await db_manager.get_checkpointer()
+        store_cm = await db_manager.get_store()
+
+        if isinstance(base_graph, StateGraph):
             # The module exported an *uncompiled* StateGraph – compile it now with
             # a Postgres checkpointer for durable state.
-            checkpointer_cm = await db_manager.get_checkpointer()
-            store_cm = await db_manager.get_store()
+
             logger.info(f"🔧 Compiling graph '{graph_id}' with Postgres persistence")
             compiled_graph = base_graph.compile(
                 checkpointer=checkpointer_cm, store=store_cm
@@ -168,9 +169,7 @@ class LangGraphService:
             # Graph was already compiled by the module.  Create a shallow copy
             # that injects our Postgres checkpointer *unless* the author already
             # set one.
-            checkpointer_cm = await db_manager.get_checkpointer()
             try:
-                store_cm = await db_manager.get_store()
                 compiled_graph = base_graph.copy(
                     update={"checkpointer": checkpointer_cm, "store": store_cm}
                 )

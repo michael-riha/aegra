@@ -26,7 +26,11 @@ from ..models import Run, RunCreate, RunStatus, User
 from ..services.langgraph_service import create_run_config, get_langgraph_service
 from ..services.streaming_service import streaming_service
 from ..utils.assistants import resolve_assistant_id
-from ..utils.run_utils import _merge_jsonb, _should_skip_event
+from ..utils.run_utils import (
+    _filter_context_by_schema,
+    _merge_jsonb,
+    _should_skip_event,
+)
 
 router = APIRouter()
 
@@ -978,6 +982,16 @@ async def execute_run_async(
             final_stream_modes.append("updates")
 
         only_interrupt_updates = not user_requested_updates
+
+        # Filter context parameters based on context schema if available
+        if context:
+            try:
+                context_schema = graph.get_context_jsonschema()
+                context = await _filter_context_by_schema(context, context_schema)
+            except Exception as e:
+                await logger.adebug(
+                    f"Failed to get context schema for filtering: {e}", exc_info=e
+                )
 
         async with with_auth_ctx(user, []):
             async for raw_event in graph.astream(
